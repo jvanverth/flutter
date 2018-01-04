@@ -4,6 +4,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matcher/matcher.dart';
+
+import '../widgets/semantics_tester.dart';
 
 void main() {
   testWidgets('Dialog is scrollable', (WidgetTester tester) async {
@@ -24,9 +27,7 @@ void main() {
                         content: new Container(
                           height: 5000.0,
                           width: 300.0,
-                          decoration: new BoxDecoration(
-                            backgroundColor: Colors.green[500]
-                          )
+                          color: Colors.green[500],
                         ),
                         actions: <Widget>[
                           new FlatButton(
@@ -100,9 +101,9 @@ void main() {
   testWidgets('Simple dialog control test', (WidgetTester tester) async {
     await tester.pumpWidget(
       new MaterialApp(
-        home: new Material(
-          child: new Center(
-            child: new RaisedButton(
+        home: const Material(
+          child: const Center(
+            child: const RaisedButton(
               onPressed: null,
               child: const Text('Go'),
             ),
@@ -124,7 +125,7 @@ void main() {
             },
             child: const Text('First option'),
           ),
-          new SimpleDialogOption(
+          const SimpleDialogOption(
             child: const Text('Second option'),
           ),
         ],
@@ -141,9 +142,9 @@ void main() {
   testWidgets('Barrier dismissible', (WidgetTester tester) async {
     await tester.pumpWidget(
       new MaterialApp(
-        home: new Material(
-          child: new Center(
-            child: new RaisedButton(
+        home: const Material(
+          child: const Center(
+            child: const RaisedButton(
               onPressed: null,
               child: const Text('Go'),
             ),
@@ -159,7 +160,7 @@ void main() {
       child: new Container(
         width: 100.0,
         height: 100.0,
-        alignment: FractionalOffset.center,
+        alignment: Alignment.center,
         child: const Text('Dialog1'),
       ),
     );
@@ -179,7 +180,7 @@ void main() {
       child: new Container(
         width: 100.0,
         height: 100.0,
-        alignment: FractionalOffset.center,
+        alignment: Alignment.center,
         child: const Text('Dialog2'),
       ),
     );
@@ -193,5 +194,83 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 1));
     expect(find.text('Dialog2'), findsOneWidget);
 
+  });
+
+  testWidgets('Dialog hides underlying semantics tree', (WidgetTester tester) async {
+    final SemanticsTester semantics = new SemanticsTester(tester);
+    const String buttonText = 'A button covered by dialog overlay';
+    await tester.pumpWidget(
+      new MaterialApp(
+        home: const Material(
+          child: const Center(
+            child: const RaisedButton(
+              onPressed: null,
+              child: const Text(buttonText),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(semantics, includesNodeWith(label: buttonText));
+
+    final BuildContext context = tester.element(find.text(buttonText));
+
+    const String alertText = 'A button in an overlay alert';
+    showDialog<Null>(
+      context: context,
+      child: const AlertDialog(title: const Text(alertText)),
+    );
+
+    await tester.pumpAndSettle(const Duration(seconds: 1));
+
+    expect(semantics, includesNodeWith(label: alertText));
+    expect(semantics, isNot(includesNodeWith(label: buttonText)));
+
+    semantics.dispose();
+  });
+
+  testWidgets('Dialogs removes MediaQuery padding', (WidgetTester tester) async {
+    BuildContext outerContext;
+    BuildContext dialogContext;
+
+    await tester.pumpWidget(new Localizations(
+      locale: const Locale('en', 'US'),
+      delegates: <LocalizationsDelegate<dynamic>>[
+        DefaultWidgetsLocalizations.delegate,
+        DefaultMaterialLocalizations.delegate,
+      ],
+      child:  new MediaQuery(
+        data: const MediaQueryData(
+          padding: const EdgeInsets.all(50.0),
+        ),
+        child: new Navigator(
+          onGenerateRoute: (_) {
+            return new PageRouteBuilder<Null>(
+              pageBuilder: (BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation) {
+                outerContext = context;
+                return new Container();
+              },
+            );
+          },
+        ),
+      ),
+    ));
+
+    showDialog<Null>(
+      context: outerContext,
+      barrierDismissible: false,
+      child: new Builder(
+        builder: (BuildContext context) {
+          dialogContext = context;
+          return new Container();
+        },
+      ),
+    );
+
+    await tester.pump();
+
+    expect(MediaQuery.of(outerContext).padding, const EdgeInsets.all(50.0));
+    expect(MediaQuery.of(dialogContext).padding, EdgeInsets.zero);
   });
 }

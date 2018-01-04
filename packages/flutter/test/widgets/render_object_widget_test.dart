@@ -21,15 +21,15 @@ class TestWidget extends StatelessWidget {
 }
 
 class TestOrientedBox extends SingleChildRenderObjectWidget {
-  TestOrientedBox({ Key key, Widget child }) : super(key: key, child: child);
+  const TestOrientedBox({ Key key, Widget child }) : super(key: key, child: child);
 
   Decoration _getDecoration(BuildContext context) {
     final Orientation orientation = MediaQuery.of(context).orientation;
     switch (orientation) {
       case Orientation.landscape:
-        return const BoxDecoration(backgroundColor: const Color(0xFF00FF00));
+        return const BoxDecoration(color: const Color(0xFF00FF00));
       case Orientation.portrait:
-        return const BoxDecoration(backgroundColor: const Color(0xFF0000FF));
+        return const BoxDecoration(color: const Color(0xFF0000FF));
     }
     assert(orientation != null);
     return null;
@@ -201,7 +201,7 @@ void main() {
 
     final RenderDecoratedBox renderBox = tester.renderObject(find.byKey(boxKey));
     BoxDecoration decoration = renderBox.decoration;
-    expect(decoration.backgroundColor, equals(const Color(0xFF00FF00)));
+    expect(decoration.color, equals(const Color(0xFF00FF00)));
 
     await tester.pumpWidget(new MediaQuery(
       data: const MediaQueryData(size: const Size(300.0, 400.0)),
@@ -209,6 +209,6 @@ void main() {
     ));
 
     decoration = renderBox.decoration;
-    expect(decoration.backgroundColor, equals(const Color(0xFF0000FF)));
+    expect(decoration.color, equals(const Color(0xFF0000FF)));
   });
 }

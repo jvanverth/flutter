@@ -15,6 +15,7 @@ const Color _kDefaultGlowColor = const Color(0xFFFFFFFF);
 ///
 /// Used by [ScrollConfiguration] to configure the [Scrollable] widgets in a
 /// subtree.
+@immutable
 class ScrollBehavior {
   /// Creates a description of how [Scrollable] widgets should behave.
   const ScrollBehavior();
@@ -46,10 +47,10 @@ class ScrollBehavior {
     return null;
   }
 
-  /// The scroll physics to use for the given platform.
+  /// The scroll physics to use for the platform given by [getPlatform].
   ///
-  /// Used by [createScrollPosition] to get the scroll physics for newly created
-  /// scroll positions.
+  /// Defaults to [BouncingScrollPhysics] on iOS and [ClampingScrollPhysics] on
+  /// Android.
   ScrollPhysics getScrollPhysics(BuildContext context) {
     switch (getPlatform(context)) {
       case TargetPlatform.iOS:
@@ -72,12 +73,15 @@ class ScrollBehavior {
   /// [ScrollConfiguration] will rebuild using the new [ScrollBehavior]. If this
   /// method returns false, the rebuilds might be optimized away.
   bool shouldNotify(covariant ScrollBehavior oldDelegate) => false;
+
+  @override
+  String toString() => '$runtimeType';
 }
 
 /// Controls how [Scrollable] widgets behave in a subtree.
 ///
 /// The scroll configuration determines the [ScrollPhysics] and viewport
-/// decorations used by decendants of [child].
+/// decorations used by descendants of [child].
 class ScrollConfiguration extends InheritedWidget {
   /// Creates a widget that controls how [Scrollable] widgets behave in a subtree.
   ///
@@ -88,10 +92,13 @@ class ScrollConfiguration extends InheritedWidget {
     @required Widget child,
   }) : super(key: key, child: child);
 
-  /// How [Scrollable] widgets that are decendants of [child] should behave.
+  /// How [Scrollable] widgets that are descendants of [child] should behave.
   final ScrollBehavior behavior;
 
   /// The [ScrollBehavior] for [Scrollable] widgets in the given [BuildContext].
+  ///
+  /// If no [ScrollConfiguration] widget is in scope of the given `context`,
+  /// a default [ScrollBehavior] instance is returned.
   static ScrollBehavior of(BuildContext context) {
     final ScrollConfiguration configuration = context.inheritFromWidgetOfExactType(ScrollConfiguration);
     return configuration?.behavior ?? const ScrollBehavior();
@@ -102,5 +109,11 @@ class ScrollConfiguration extends InheritedWidget {
     assert(behavior != null);
     return behavior.runtimeType != oldWidget.behavior.runtimeType
         || (behavior != oldWidget.behavior && behavior.shouldNotify(oldWidget.behavior));
+  }
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsProperty<ScrollBehavior>('behavior', behavior));
   }
 }

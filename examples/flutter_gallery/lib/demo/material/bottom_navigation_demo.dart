@@ -47,9 +47,9 @@ class NavigationIconView {
     return new FadeTransition(
       opacity: _animation,
       child: new SlideTransition(
-        position: new Tween<FractionalOffset>(
-          begin: const FractionalOffset(0.0, 0.02), // Small offset from the top.
-          end: FractionalOffset.topLeft,
+        position: new Tween<Offset>(
+          begin: const Offset(0.0, 0.02), // Slightly down.
+          end: Offset.zero,
         ).animate(_animation),
         child: new IconTheme(
           data: new IconThemeData(
@@ -71,9 +71,7 @@ class CustomIcon extends StatelessWidget {
       margin: const EdgeInsets.all(4.0),
       width: iconTheme.size - 8.0,
       height: iconTheme.size - 8.0,
-      decoration: new BoxDecoration(
-        backgroundColor: iconTheme.color,
-      ),
+      color: iconTheme.color,
     );
   }
 }
@@ -192,11 +190,11 @@ class _BottomNavigationDemoState extends State<BottomNavigationDemo>
               });
             },
             itemBuilder: (BuildContext context) => <PopupMenuItem<BottomNavigationBarType>>[
-              new PopupMenuItem<BottomNavigationBarType>(
+              const PopupMenuItem<BottomNavigationBarType>(
                 value: BottomNavigationBarType.fixed,
                 child: const Text('Fixed'),
               ),
-              new PopupMenuItem<BottomNavigationBarType>(
+              const PopupMenuItem<BottomNavigationBarType>(
                 value: BottomNavigationBarType.shifting,
                 child: const Text('Shifting'),
               )

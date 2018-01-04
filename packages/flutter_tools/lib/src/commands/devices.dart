@@ -23,20 +23,27 @@ class DevicesCommand extends FlutterCommand {
     if (!doctor.canListAnything) {
       throwToolExit(
         "Unable to locate a development device; please run 'flutter doctor' for "
-        "information about installing additional components.",
+        'information about installing additional components.',
         exitCode: 1);
     }
 
-    final List<Device> devices = await deviceManager.getAllConnectedDevices();
+    final List<Device> devices = await deviceManager.getAllConnectedDevices().toList();
 
     if (devices.isEmpty) {
       printStatus(
         'No devices detected.\n\n'
         'If you expected your device to be detected, please run "flutter doctor" to diagnose\n'
         'potential issues, or visit https://flutter.io/setup/ for troubleshooting tips.');
+      final List<String> diagnostics = await deviceManager.getDeviceDiagnostics();
+      if (diagnostics.isNotEmpty) {
+        printStatus('');
+        for (String diagnostic in diagnostics) {
+          printStatus('• ${diagnostic.replaceAll('\n', '\n  ')}');
+        }        
+      }
     } else {
       printStatus('${devices.length} connected ${pluralize('device', devices.length)}:\n');
-      Device.printDevices(devices);
+      await Device.printDevices(devices);
     }
   }
 }

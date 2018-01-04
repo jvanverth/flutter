@@ -13,8 +13,9 @@ import '../ios/mac.dart';
 import 'build.dart';
 
 class BuildIOSCommand extends BuildSubCommand {
-  BuildIOSCommand() {
+  BuildIOSCommand({bool verboseHelp: false}) {
     usesTargetOption();
+    usesFlavorOption();
     usesPubOption();
     argParser.addFlag('debug',
       negatable: false,
@@ -28,6 +29,8 @@ class BuildIOSCommand extends BuildSubCommand {
     argParser.addFlag('simulator', help: 'Build for the iOS simulator instead of the device.');
     argParser.addFlag('codesign', negatable: true, defaultsTo: true,
         help: 'Codesign the application bundle (only available on device builds).');
+    argParser.addFlag('preview-dart-2', negatable: false,
+        hide: !verboseHelp);
   }
 
   @override
@@ -45,7 +48,7 @@ class BuildIOSCommand extends BuildSubCommand {
     if (getCurrentHostPlatform() != HostPlatform.darwin_x64)
       throwToolExit('Building for iOS is only supported on the Mac.');
 
-    final IOSApp app = applicationPackages.getPackageForPlatform(TargetPlatform.ios);
+    final BuildableIOSApp app = await applicationPackages.getPackageForPlatform(TargetPlatform.ios);
 
     if (app == null)
       throwToolExit('Application not configured for iOS');
@@ -56,24 +59,24 @@ class BuildIOSCommand extends BuildSubCommand {
       printStatus('Warning: Building for device with codesigning disabled. You will '
         'have to manually codesign before deploying to device.');
     }
-
-    if (forSimulator && !isEmulatorBuildMode(getBuildMode()))
-      throwToolExit('${toTitleCase(getModeName(getBuildMode()))} mode is not supported for emulators.');
+    final BuildInfo buildInfo = getBuildInfo();
+    if (forSimulator && !buildInfo.supportsSimulator)
+      throwToolExit('${toTitleCase(buildInfo.modeName)} mode is not supported for simulators.');
 
     final String logTarget = forSimulator ? 'simulator' : 'device';
 
-    final String typeName = artifacts.getEngineType(TargetPlatform.ios, getBuildMode());
+    final String typeName = artifacts.getEngineType(TargetPlatform.ios, buildInfo.mode);
     printStatus('Building $app for $logTarget ($typeName)...');
     final XcodeBuildResult result = await buildXcodeProject(
       app: app,
-      mode: getBuildMode(),
+      buildInfo: buildInfo,
       target: targetFile,
       buildForDevice: !forSimulator,
-      codesign: shouldCodesign
+      codesign: shouldCodesign,
     );
 
     if (!result.success) {
-      await diagnoseXcodeBuildFailure(result);
+      await diagnoseXcodeBuildFailure(result, app);
       throwToolExit('Encountered error while building for $logTarget.');
     }
 

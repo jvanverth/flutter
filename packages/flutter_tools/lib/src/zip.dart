@@ -33,14 +33,24 @@ class _ArchiveZipBuilder extends ZipBuilder {
   Future<Null> createZip(File outFile, Directory zipBuildDir) async {
     final Archive archive = new Archive();
 
+    if (zipBuildDir.existsSync())
+      zipBuildDir.deleteSync(recursive: true);
+    zipBuildDir.createSync(recursive: true);
+
     final Completer<Null> finished = new Completer<Null>();
     int count = entries.length;
     entries.forEach((String archivePath, DevFSContent content) {
       content.contentsAsBytes().then<Null>((List<int> data) {
         archive.addFile(new ArchiveFile.noCompress(archivePath, data.length, data));
-        count -= 1;
-        if (count == 0)
-          finished.complete();
+
+        final File file = fs.file(fs.path.join(zipBuildDir.path, archivePath));
+        file.parent.createSync(recursive: true);
+
+        file.writeAsBytes(data).then<Null>((File value) {
+          count -= 1;
+          if (count == 0)
+            finished.complete();
+        });
       });
     });
     await finished.future;
@@ -62,8 +72,9 @@ class _ZipToolBuilder extends ZipBuilder {
       return;
     }
 
-    if (outFile.existsSync())
-      outFile.deleteSync();
+    final File tmpFile = fs.file('${outFile.path}.tmp');
+    if (tmpFile.existsSync())
+      tmpFile.deleteSync();
 
     if (zipBuildDir.existsSync())
       zipBuildDir.deleteSync(recursive: true);
@@ -86,19 +97,21 @@ class _ZipToolBuilder extends ZipBuilder {
 
     final Iterable<String> compressedNames = _getCompressedNames();
     if (compressedNames.isNotEmpty) {
-      runCheckedSync(
-        <String>['zip', '-q', outFile.absolute.path]..addAll(compressedNames),
+      await runCheckedAsync(
+        <String>['zip', '-q', tmpFile.absolute.path]..addAll(compressedNames),
         workingDirectory: zipBuildDir.path
       );
     }
 
     final Iterable<String> storedNames = _getStoredNames();
     if (storedNames.isNotEmpty) {
-      runCheckedSync(
-        <String>['zip', '-q', '-0', outFile.absolute.path]..addAll(storedNames),
+      await runCheckedAsync(
+        <String>['zip', '-q', '-0', tmpFile.absolute.path]..addAll(storedNames),
         workingDirectory: zipBuildDir.path
       );
     }
+
+    tmpFile.renameSync(outFile.absolute.path);
   }
 
   static const List<String> _kNoCompressFileExtensions = const <String>['.png', '.jpg'];

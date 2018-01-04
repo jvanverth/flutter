@@ -15,7 +15,7 @@ class InsideState extends State<Inside> {
   Widget build(BuildContext context) {
     return new Listener(
       onPointerDown: _handlePointerDown,
-      child: const Text('INSIDE')
+      child: const Text('INSIDE', textDirection: TextDirection.ltr),
     );
   }
 
@@ -25,7 +25,7 @@ class InsideState extends State<Inside> {
 }
 
 class Middle extends StatefulWidget {
-  Middle({ this.child });
+  const Middle({ this.child });
 
   final Inside child;
 
@@ -38,7 +38,7 @@ class MiddleState extends State<Middle> {
   Widget build(BuildContext context) {
     return new Listener(
       onPointerDown: _handlePointerDown,
-      child: widget.child
+      child: widget.child,
     );
   }
 

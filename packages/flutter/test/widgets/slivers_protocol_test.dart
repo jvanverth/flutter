@@ -20,14 +20,17 @@ void main() {
   testWidgets('Sliver protocol', (WidgetTester tester) async {
     GlobalKey key1, key2, key3, key4, key5;
     await tester.pumpWidget(
-      new CustomScrollView(
-        slivers: <Widget>[
-          new BigSliver(key: key1 = new GlobalKey()),
-          new OverlappingSliver(key: key2 = new GlobalKey()),
-          new OverlappingSliver(key: key3 = new GlobalKey()),
-          new BigSliver(key: key4 = new GlobalKey()),
-          new BigSliver(key: key5 = new GlobalKey()),
-        ],
+      new Directionality(
+        textDirection: TextDirection.ltr,
+        child: new CustomScrollView(
+          slivers: <Widget>[
+            new BigSliver(key: key1 = new GlobalKey()),
+            new OverlappingSliver(key: key2 = new GlobalKey()),
+            new OverlappingSliver(key: key3 = new GlobalKey()),
+            new BigSliver(key: key4 = new GlobalKey()),
+            new BigSliver(key: key5 = new GlobalKey()),
+          ],
+        ),
       ),
     );
     final ScrollPosition position = tester.state<ScrollableState>(find.byType(Scrollable)).position;
@@ -65,7 +68,7 @@ class RenderBigSliver extends RenderSliver {
 }
 
 class BigSliver extends LeafRenderObjectWidget {
-  BigSliver({ Key key }) : super(key: key);
+  const BigSliver({ Key key }) : super(key: key);
   @override
   RenderBigSliver createRenderObject(BuildContext context) {
     return new RenderBigSliver();
@@ -102,7 +105,7 @@ class RenderOverlappingSliver extends RenderSliver {
 }
 
 class OverlappingSliver extends LeafRenderObjectWidget {
-  OverlappingSliver({ Key key }) : super(key: key);
+  const OverlappingSliver({ Key key }) : super(key: key);
   @override
   RenderOverlappingSliver createRenderObject(BuildContext context) {
     return new RenderOverlappingSliver();

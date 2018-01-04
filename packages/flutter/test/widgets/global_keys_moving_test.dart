@@ -10,12 +10,12 @@ class Item {
   GlobalKey key2 = new GlobalKey();
 
   @override
-  String toString() => "Item($key1, $key2)";
+  String toString() => 'Item($key1, $key2)';
 }
 List<Item> items = <Item>[new Item(), new Item()];
 
 class StatefulLeaf extends StatefulWidget {
-  StatefulLeaf({ GlobalKey key }) : super(key: key);
+  const StatefulLeaf({ GlobalKey key }) : super(key: key);
 
   @override
   StatefulLeafState createState() => new StatefulLeafState();
@@ -25,13 +25,14 @@ class StatefulLeafState extends State<StatefulLeaf> {
   void markNeedsBuild() { setState(() { }); }
 
   @override
-  Widget build(BuildContext context) => const Text('leaf');
+  Widget build(BuildContext context) => const Text('leaf', textDirection: TextDirection.ltr);
 }
 
 class KeyedWrapper extends StatelessWidget {
-  KeyedWrapper(this.key1, this.key2);
+  const KeyedWrapper(this.key1, this.key2);
 
-  Key key1, key2;
+  final Key key1;
+  final Key key2;
 
   @override
   Widget build(BuildContext context) {

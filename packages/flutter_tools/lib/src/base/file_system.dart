@@ -10,6 +10,7 @@ import 'package:file/record_replay.dart';
 
 import 'common.dart' show throwToolExit;
 import 'context.dart';
+import 'platform.dart';
 import 'process.dart';
 
 export 'package:file/file.dart';
@@ -70,28 +71,30 @@ void ensureDirectoryExists(String filePath) {
   }
 }
 
-/// Recursively copies `srcDir` to `destDir`.
+/// Recursively copies `srcDir` to `destDir`, invoking [onFileCopied] if
+/// specified for each source/destination file pair.
 ///
 /// Creates `destDir` if needed.
-void copyDirectorySync(Directory srcDir, Directory destDir) {
+void copyDirectorySync(Directory srcDir, Directory destDir, [void onFileCopied(File srcFile, File destFile)]) {
   if (!srcDir.existsSync())
     throw new Exception('Source directory "${srcDir.path}" does not exist, nothing to copy');
 
   if (!destDir.existsSync())
     destDir.createSync(recursive: true);
 
-  srcDir.listSync().forEach((FileSystemEntity entity) {
+  for (FileSystemEntity entity in srcDir.listSync()) {
     final String newPath = destDir.fileSystem.path.join(destDir.path, entity.basename);
     if (entity is File) {
       final File newFile = destDir.fileSystem.file(newPath);
       newFile.writeAsBytesSync(entity.readAsBytesSync());
+      onFileCopied?.call(entity, newFile);
     } else if (entity is Directory) {
       copyDirectorySync(
         entity, destDir.fileSystem.directory(newPath));
     } else {
       throw new Exception('${entity.path} is neither File nor Directory');
     }
-  });
+  }
 }
 
 /// Gets a directory to act as a recording destination, creating the directory
@@ -134,3 +137,17 @@ Directory getReplaySource(String dirname, String basename) {
     throwToolExit('Invalid replay-from location: $dirname ("$basename" does not exist)');
   return dir;
 }
+
+/// Canonicalizes [path].
+///
+/// This function implements the behavior of `canonicalize` from
+/// `package:path`. However, unlike the original, it does not change the ASCII
+/// case of the path. Changing the case can break hot reload in some situations,
+/// for an example see: https://github.com/flutter/flutter/issues/9539.
+String canonicalizePath(String path) => fs.path.normalize(fs.path.absolute(path));
+
+/// Escapes [path].
+///
+/// On Windows it replaces all '\' with '\\'. On other platforms, it returns the
+/// path unchanged.
+String escapePath(String path) => platform.isWindows ? path.replaceAll('\\', '\\\\') : path;

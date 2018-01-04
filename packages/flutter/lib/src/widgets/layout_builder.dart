@@ -16,12 +16,12 @@ typedef Widget LayoutWidgetBuilder(BuildContext context, BoxConstraints constrai
 /// Similar to the [Builder] widget except that the framework calls the [builder]
 /// function at layout time and provides the parent widget's constraints. This
 /// is useful when the parent constrains the child's size and doesn't depend on
-/// the child's intrinsic size. The LayoutBuilder's final size will match its
+/// the child's intrinsic size. The [LayoutBuilder]'s final size will match its
 /// child's size.
 ///
 /// If the child should be smaller than the parent, consider wrapping the child
 /// in an [Align] widget. If the child might want to be bigger, consider
-/// wrapping it in a [ScrollableViewport].
+/// wrapping it in a [SingleChildScrollView].
 ///
 /// See also:
 ///
@@ -32,12 +32,11 @@ class LayoutBuilder extends RenderObjectWidget {
   /// Creates a widget that defers its building until layout.
   ///
   /// The [builder] argument must not be null.
-  LayoutBuilder({
+  const LayoutBuilder({
     Key key,
     @required this.builder
-  }) : super(key: key) {
-    assert(builder != null);
-  }
+  }) : assert(builder != null),
+       super(key: key);
 
   /// Called at layout time to construct the widget tree. The builder must not
   /// return null.
@@ -112,16 +111,14 @@ class _LayoutBuilderElement extends RenderObjectElement {
           built = widget.builder(this, constraints);
           debugWidgetBuilderValue(widget, built);
         } catch (e, stack) {
-          _debugReportException('building $widget', e, stack);
-          built = new ErrorWidget(e);
+          built = ErrorWidget.builder(_debugReportException('building $widget', e, stack));
         }
       }
       try {
         _child = updateChild(_child, built, null);
         assert(_child != null);
       } catch (e, stack) {
-        _debugReportException('building $widget', e, stack);
-        built = new ErrorWidget(e);
+        built = ErrorWidget.builder(_debugReportException('building $widget', e, stack));
         _child = updateChild(null, built, slot);
       }
     });
@@ -131,6 +128,7 @@ class _LayoutBuilderElement extends RenderObjectElement {
   void insertChildRenderObject(RenderObject child, dynamic slot) {
     final RenderObjectWithChildMixin<RenderObject> renderObject = this.renderObject;
     assert(slot == null);
+    assert(renderObject.debugValidateChild(child));
     renderObject.child = child;
     assert(renderObject == this.renderObject);
   }
@@ -168,12 +166,12 @@ class _RenderLayoutBuilder extends RenderBox with RenderObjectWithChildMixin<Ren
       if (!RenderObject.debugCheckingIntrinsics) {
         throw new FlutterError(
           'LayoutBuilder does not support returning intrinsic dimensions.\n'
-          'Calculating the intrinsic dimensions would require running the layout callback speculatively, '
-          'which might mutate the live render object tree.'
+          'Calculating the intrinsic dimensions would require running the layout '
+          'callback speculatively, which might mutate the live render object tree.'
         );
       }
       return true;
-    });
+    }());
     return true;
   }
 
@@ -225,11 +223,17 @@ class _RenderLayoutBuilder extends RenderBox with RenderObjectWithChildMixin<Ren
   }
 }
 
-void _debugReportException(String context, dynamic exception, StackTrace stack) {
-  FlutterError.reportError(new FlutterErrorDetails(
+FlutterErrorDetails _debugReportException(
+  String context,
+  dynamic exception,
+  StackTrace stack,
+) {
+  final FlutterErrorDetails details = new FlutterErrorDetails(
     exception: exception,
     stack: stack,
     library: 'widgets library',
     context: context
-  ));
+  );
+  FlutterError.reportError(details);
+  return details;
 }

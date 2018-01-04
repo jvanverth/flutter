@@ -9,8 +9,6 @@ import 'colors.dart';
 import 'constants.dart';
 import 'debug.dart';
 import 'flat_button.dart';
-import 'icon_theme.dart';
-import 'icon_theme_data.dart';
 import 'ink_well.dart';
 import 'material.dart';
 import 'raised_button.dart';
@@ -20,14 +18,16 @@ import 'theme.dart';
 ///
 /// See also:
 ///
-///  * [ButtonTheme]
-///  * [RaisedButton]
-///  * [FlatButton]
+///  * [ButtonTheme], which uses this enum to define the [ButtonTheme.textTheme].
+///  * [RaisedButton], which styles itself based on the ambient [ButtonTheme].
+///  * [FlatButton], which styles itself based on the ambient [ButtonTheme].
 enum ButtonTextTheme {
-  /// The button should use the normal color (e.g., black or white depending on the [ThemeData.brightness]) for its text.
+  /// The button should use the normal color (e.g., black or white depending on
+  /// the [ThemeData.brightness]) for its text.
   normal,
 
-  /// The button should use the accent color (e.g., [ThemeData.accentColor]) for its text.
+  /// The button should use the accent color (e.g., [ThemeData.accentColor]) for
+  /// its text.
   accent,
 }
 
@@ -35,9 +35,9 @@ enum ButtonTextTheme {
 ///
 /// See also:
 ///
-///  * [ButtonTextTheme]
-///  * [RaisedButton]
-///  * [FlatButton]
+///  * [ButtonTextTheme], which is used by [textTheme].
+///  * [RaisedButton], which styles itself based on the ambient [ButtonTheme].
+///  * [FlatButton], which styles itself based on the ambient [ButtonTheme].
 class ButtonTheme extends InheritedWidget {
   /// Creates a button theme.
   ///
@@ -90,7 +90,7 @@ class ButtonTheme extends InheritedWidget {
   /// The amount of space to surround the child inside the bounds of the button.
   ///
   /// Defaults to 16.0 pixels of horizontal padding.
-  final EdgeInsets padding;
+  final EdgeInsetsGeometry padding;
 
   /// The closest instance of this class that encloses the given context.
   ///
@@ -121,12 +121,21 @@ class ButtonTheme extends InheritedWidget {
 ///
 /// MaterialButtons whose [onPressed] handler is null will be disabled. To have
 /// an enabled button, make sure to pass a non-null value for onPressed.
+///
+/// If you want an ink-splash effect for taps, but don't want to use a button,
+/// consider using [InkWell] directly.
+///
+/// The button will expand to fit the child widget, if necessary.
+///
+/// See also:
+///
+///  * [IconButton], to create buttons that contain icons rather than text.
 class MaterialButton extends StatefulWidget {
   /// Creates a material button.
   ///
   /// Rather than creating a material button directly, consider using
   /// [FlatButton] or [RaisedButton].
-  MaterialButton({
+  const MaterialButton({
     Key key,
     this.colorBrightness,
     this.textTheme,
@@ -172,37 +181,52 @@ class MaterialButton extends StatefulWidget {
   /// ```
   final Color color;
 
-  /// The primary color of the button when the button is in the down (pressed) state.
-  /// The splash is represented as a circular overlay that appears above the
-  /// [highlightColor] overlay. The splash overlay has a center point that matches
-  /// the hit point of the user touch event. The splash overlay will expand to
-  /// fill the button area if the touch is held for long enough time. If the splash
-  /// color has transparency then the highlight and button color will show through.
+  /// The primary color of the button when the button is in the down (pressed)
+  /// state.
   ///
-  /// Defaults to the splash color from the [Theme].
+  /// The splash is represented as a circular overlay that appears above the
+  /// [highlightColor] overlay. The splash overlay has a center point that
+  /// matches the hit point of the user touch event. The splash overlay will
+  /// expand to fill the button area if the touch is held for long enough time.
+  /// If the splash color has transparency then the highlight and button color
+  /// will show through.
+  ///
+  /// Defaults to the Theme's splash color, [ThemeData.splashColor].
   final Color splashColor;
 
   /// The secondary color of the button when the button is in the down (pressed)
-  /// state. The higlight color is represented as a solid color that is overlaid over the
-  /// button color (if any). If the highlight color has transparency, the button color
-  /// will show through. The highlight fades in quickly as the button is held down.
+  /// state.
   ///
-  /// Defaults to the highlight color from the [Theme].
+  /// The highlight color is represented as a solid color that is overlaid over
+  /// the button color (if any). If the highlight color has transparency, the
+  /// button color will show through. The highlight fades in quickly as the
+  /// button is held down.
+  ///
+  /// Defaults to the Theme's highlight color, [ThemeData.highlightColor].
   final Color highlightColor;
 
-  /// The z-coordinate at which to place this button.
-  ///
-  /// The following elevations have defined shadows: 1, 2, 3, 4, 6, 8, 9, 12, 16, 24
+  /// The z-coordinate at which to place this button. This controls the size of
+  /// the shadow below the button.
   ///
   /// Defaults to 0.
-  final int elevation;
+  ///
+  /// See also:
+  ///
+  ///  * [FlatButton], a material button specialized for the case where the
+  ///    elevation is zero.
+  ///  * [RaisedButton], a material button specialized for the case where the
+  ///    elevation is non-zero.
+  final double elevation;
 
-  /// The z-coordinate at which to place this button when highlighted.
-  ///
-  /// The following elevations have defined shadows: 1, 2, 3, 4, 6, 8, 9, 12, 16, 24
+  /// The z-coordinate at which to place this button when highlighted. This
+  /// controls the size of the shadow below the button.
   ///
   /// Defaults to 0.
-  final int highlightElevation;
+  ///
+  /// See also:
+  ///
+  ///  * [elevation], the default elevation.
+  final double highlightElevation;
 
   /// The smallest horizontal extent that the button will occupy.
   ///
@@ -217,7 +241,7 @@ class MaterialButton extends StatefulWidget {
   /// The amount of space to surround the child inside the bounds of the button.
   ///
   /// Defaults to the value from the current [ButtonTheme].
-  final EdgeInsets padding;
+  final EdgeInsetsGeometry padding;
 
   /// The callback that is called when the button is tapped or otherwise activated.
   ///
@@ -225,6 +249,8 @@ class MaterialButton extends StatefulWidget {
   final VoidCallback onPressed;
 
   /// The widget below this widget in the tree.
+  ///
+  /// {@macro flutter.widgets.child}
   final Widget child;
 
   /// Whether the button is enabled or disabled. Buttons are disabled by default. To
@@ -235,10 +261,9 @@ class MaterialButton extends StatefulWidget {
   _MaterialButtonState createState() => new _MaterialButtonState();
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    if (!enabled)
-      description.add('disabled');
+  void debugFillProperties(DiagnosticPropertiesBuilder description) {
+    super.debugFillProperties(description);
+    description.add(new FlagProperty('enabled', value: enabled, ifFalse: 'disabled'));
   }
 }
 
@@ -290,7 +315,7 @@ class _MaterialButtonState extends State<MaterialButton> {
     final TextStyle style = theme.textTheme.button.copyWith(color: textColor);
     final ButtonTheme buttonTheme = ButtonTheme.of(context);
     final double height = widget.height ?? buttonTheme.height;
-    final int elevation = (_highlight ? widget.highlightElevation : widget.elevation) ?? 0;
+    final double elevation = (_highlight ? widget.highlightElevation : widget.elevation) ?? 0.0;
     final bool hasColorOrElevation = (widget.color != null || elevation > 0);
     Widget contents = IconTheme.merge(
       data: new IconThemeData(
@@ -306,7 +331,8 @@ class _MaterialButtonState extends State<MaterialButton> {
           padding: widget.padding ?? ButtonTheme.of(context).padding,
           child: new Center(
             widthFactor: 1.0,
-            child: widget.child
+            heightFactor: 1.0,
+            child: new Semantics(button: true, child: widget.child),
           )
         )
       )
@@ -330,7 +356,6 @@ class _MaterialButtonState extends State<MaterialButton> {
       constraints: new BoxConstraints(
         minWidth: widget.minWidth ?? buttonTheme.minWidth,
         minHeight: height,
-        maxHeight: height
       ),
       child: contents
     );

@@ -4,15 +4,15 @@
 
 import 'dart:async';
 
+import 'package:meta/meta.dart';
 import 'package:usage/usage_io.dart';
 
 import 'base/context.dart';
 import 'base/os.dart';
+import 'base/platform.dart';
 import 'base/utils.dart';
 import 'globals.dart';
 import 'version.dart';
-
-// TODO(devoncarew): We'll want to find a way to send (sanitized) command parameters.
 
 const String _kFlutterUA = 'UA-67589403-6';
 
@@ -21,12 +21,18 @@ Usage get flutterUsage => Usage.instance;
 class Usage {
   /// Create a new Usage instance; [versionOverride] is used for testing.
   Usage({ String settingsName: 'flutter', String versionOverride }) {
-    final String version = versionOverride ?? FlutterVersion.getVersionString(whitelistBranchName: true);
+    final FlutterVersion flutterVersion = FlutterVersion.instance;
+    final String version = versionOverride ?? flutterVersion.getVersionString(whitelistBranchName: true);
     _analytics = new AnalyticsIO(_kFlutterUA, settingsName, version);
 
-    // Report a more detailed OS version string than package:usage does by
-    // default as custom dimension 1 (configured in our analytics account).
-    _analytics.setSessionValue('dimension1', os.name);
+    // Report a more detailed OS version string than package:usage does by default.
+    _analytics.setSessionValue('cd1', os.name);
+    // Send the branch name as the "channel".
+    _analytics.setSessionValue('cd2', flutterVersion.getBranchName(whitelistBranchName: true));
+    // Record the host as the application installer ID - the context that flutter_tools is running in.
+    if (platform.environment.containsKey('FLUTTER_HOST')) {
+      _analytics.setSessionValue('aiid', platform.environment['FLUTTER_HOST']);
+    }
 
     bool runningOnCI = false;
 
@@ -70,25 +76,39 @@ class Usage {
   /// reports coming from the same computer.
   String get clientId => _analytics.clientId;
 
-  void sendCommand(String command) {
-    if (!suppressAnalytics)
-      _analytics.sendScreenView(command);
-  }
-
-  void sendEvent(String category, String parameter) {
-    if (!suppressAnalytics)
-      _analytics.sendEvent(category, parameter);
-  }
-
-  void sendTiming(String category, String variableName, Duration duration) {
-    _analytics.sendTiming(variableName, duration.inMilliseconds, category: category);
-  }
-
-  UsageTimer startTimer(String event) {
+  void sendCommand(String command, { Map<String, String> parameters }) {
     if (suppressAnalytics)
-      return new _MockUsageTimer();
-    else
-      return new UsageTimer._(event, _analytics.startTimer(event, category: 'flutter'));
+      return;
+
+    parameters ??= const <String, String>{};
+
+    _analytics.sendScreenView(command, parameters: parameters);
+  }
+
+  void sendEvent(String category, String parameter,
+      { Map<String, String> parameters }) {
+    if (suppressAnalytics)
+      return;
+
+    parameters ??= const <String, String>{};
+
+    _analytics.sendEvent(category, parameter, parameters: parameters);
+  }
+
+  void sendTiming(
+    String category,
+    String variableName,
+    Duration duration, {
+    String label,
+    }) {
+    if (!suppressAnalytics) {
+      _analytics.sendTiming(
+        variableName,
+        duration.inMilliseconds,
+        category: category,
+        label: label,
+      );
+    }
   }
 
   void sendException(dynamic exception, StackTrace trace) {
@@ -96,7 +116,8 @@ class Usage {
       _analytics.sendException('${exception.runtimeType}\n${sanitizeStacktrace(trace)}');
   }
 
-  /// Fires whenever analytics data is sent over the network; public for testing.
+  /// Fires whenever analytics data is sent over the network.
+  @visibleForTesting
   Stream<Map<String, dynamic>> get onSend => _analytics.onSend;
 
   /// Returns when the last analytics event has been sent, or after a fixed
@@ -135,25 +156,4 @@ class Usage {
   ╚════════════════════════════════════════════════════════════════════════════╝
   ''', emphasis: true);
   }
-}
-
-class UsageTimer {
-  UsageTimer._(this.event, this._timer);
-
-  final String event;
-  final AnalyticsTimer _timer;
-
-  void finish() {
-    _timer.finish();
-  }
-}
-
-class _MockUsageTimer implements UsageTimer {
-  @override
-  String event;
-  @override
-  AnalyticsTimer _timer;
-
-  @override
-  void finish() { }
 }

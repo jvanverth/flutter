@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 export 'dart:ui' show TextAffinity, TextPosition;
 
 /// A range of characters in a string of text.
+@immutable
 class TextRange {
   /// Creates a text range.
   ///
@@ -20,11 +21,15 @@ class TextRange {
   const TextRange({
     @required this.start,
     @required this.end
-  });
+  }) : assert(start != null && start >= -1),
+       assert(end != null && end >= -1);
 
   /// A text range that starts and ends at offset.
+  ///
+  /// The [offset] argument must be non-null and greater than or equal to -1.
   const TextRange.collapsed(int offset)
-    : start = offset,
+    : assert(offset != null && offset >= -1),
+      start = offset,
       end = offset;
 
   /// A text range that contains nothing and is not in the text.
@@ -89,6 +94,7 @@ class TextRange {
 }
 
 /// A range of text that represents a selection.
+@immutable
 class TextSelection extends TextRange {
   /// Creates a text selection.
   ///
@@ -193,4 +199,20 @@ class TextSelection extends TextRange {
     affinity.hashCode,
     isDirectional.hashCode
   );
+
+  /// Creates a new [TextSelection] based on the current selection, with the
+  /// provided parameters overridden.
+  TextSelection copyWith({
+    int baseOffset, 
+    int extentOffset,
+    TextAffinity affinity,
+    bool isDirectional,
+  }) {
+    return new TextSelection(
+      baseOffset: baseOffset ?? this.baseOffset,
+      extentOffset: extentOffset ?? this.extentOffset,
+      affinity: affinity ?? this.affinity,
+      isDirectional: isDirectional ?? this.isDirectional,
+    );
+  }
 }

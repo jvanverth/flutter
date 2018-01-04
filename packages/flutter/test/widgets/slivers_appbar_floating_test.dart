@@ -26,12 +26,15 @@ void main() {
   testWidgets('Sliver appbars - floating - scroll offset doesn\'t change', (WidgetTester tester) async {
     const double bigHeight = 1000.0;
     await tester.pumpWidget(
-      new CustomScrollView(
-        slivers: <Widget>[
-          new BigSliver(height: bigHeight),
-          new SliverPersistentHeader(delegate: new TestDelegate(), floating: true),
-          new BigSliver(height: bigHeight),
-        ],
+      new Directionality(
+        textDirection: TextDirection.ltr,
+        child: new CustomScrollView(
+          slivers: <Widget>[
+            const BigSliver(height: bigHeight),
+            new SliverPersistentHeader(delegate: new TestDelegate(), floating: true),
+            const BigSliver(height: bigHeight),
+          ],
+        ),
       ),
     );
     final ScrollPosition position = tester.state<ScrollableState>(find.byType(Scrollable)).position;
@@ -53,12 +56,15 @@ void main() {
     const double bigHeight = 1000.0;
     GlobalKey key1, key2, key3;
     await tester.pumpWidget(
-      new CustomScrollView(
-        slivers: <Widget>[
-          new BigSliver(key: key1 = new GlobalKey(), height: bigHeight),
-          new SliverPersistentHeader(key: key2 = new GlobalKey(), delegate: delegate, floating: true),
-          new BigSliver(key: key3 = new GlobalKey(), height: bigHeight),
-        ],
+      new Directionality(
+        textDirection: TextDirection.ltr,
+        child: new CustomScrollView(
+          slivers: <Widget>[
+            new BigSliver(key: key1 = new GlobalKey(), height: bigHeight),
+            new SliverPersistentHeader(key: key2 = new GlobalKey(), delegate: delegate, floating: true),
+            new BigSliver(key: key3 = new GlobalKey(), height: bigHeight),
+          ],
+        ),
       ),
     );
     final ScrollPosition position = tester.state<ScrollableState>(find.byType(Scrollable)).position;
@@ -122,12 +128,15 @@ void main() {
     const double bigHeight = 1000.0;
     GlobalKey key1, key2, key3;
     await tester.pumpWidget(
-      new CustomScrollView(
-        slivers: <Widget>[
-          new BigSliver(key: key1 = new GlobalKey(), height: bigHeight),
-          new SliverPersistentHeader(key: key2 = new GlobalKey(), delegate: delegate, floating: true),
-          new BigSliver(key: key3 = new GlobalKey(), height: bigHeight),
-        ],
+      new Directionality(
+        textDirection: TextDirection.ltr,
+        child: new CustomScrollView(
+          slivers: <Widget>[
+            new BigSliver(key: key1 = new GlobalKey(), height: bigHeight),
+            new SliverPersistentHeader(key: key2 = new GlobalKey(), delegate: delegate, floating: true),
+            new BigSliver(key: key3 = new GlobalKey(), height: bigHeight),
+          ],
+        ),
       ),
     );
     final ScrollPosition position = tester.state<ScrollableState>(find.byType(Scrollable)).position;
@@ -154,15 +163,18 @@ void main() {
     const double bigHeight = 1000.0;
     GlobalKey key1, key2, key3;
     await tester.pumpWidget(
-      new CustomScrollView(
-        slivers: <Widget>[
-          new BigSliver(key: key1 = new GlobalKey(), height: bigHeight),
-          new SliverPersistentHeader(key: key2 = new GlobalKey(), delegate: delegate, floating: true),
-          new BigSliver(key: key3 = new GlobalKey(), height: bigHeight),
-        ],
+      new Directionality(
+        textDirection: TextDirection.ltr,
+        child: new CustomScrollView(
+          slivers: <Widget>[
+            new BigSliver(key: key1 = new GlobalKey(), height: bigHeight),
+            new SliverPersistentHeader(key: key2 = new GlobalKey(), delegate: delegate, floating: true),
+            new BigSliver(key: key3 = new GlobalKey(), height: bigHeight),
+          ],
+        ),
       ),
     );
-    final ScrollPosition position = tester.state<ScrollableState>(find.byType(Scrollable)).position;
+    final ScrollPositionWithSingleContext position = tester.state<ScrollableState>(find.byType(Scrollable)).position;
 
     verifyPaintPosition(key1, const Offset(0.0, 0.0), true);
     verifyPaintPosition(key2, const Offset(0.0, 600.0), false);
@@ -175,7 +187,7 @@ void main() {
     verifyPaintPosition(key3, const Offset(0.0, 0.0), true);
 
     position.animateTo(bigHeight + delegate.maxExtent * 1.9, curve: Curves.linear, duration: const Duration(minutes: 1));
-    position.updateUserScrollDirection(ScrollDirection.forward); // ignore: INVALID_USE_OF_PROTECTED_MEMBER, since this is using a protected method for testing purposes
+    position.updateUserScrollDirection(ScrollDirection.forward);
     await tester.pumpAndSettle(const Duration(milliseconds: 1000));
     verifyPaintPosition(key1, const Offset(0.0, 0.0), false);
     verifyPaintPosition(key2, const Offset(0.0, 0.0), true);
@@ -185,19 +197,22 @@ void main() {
 
   testWidgets('Sliver appbars - floating - overscroll gap is below header', (WidgetTester tester) async {
     await tester.pumpWidget(
-      new CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: <Widget>[
-          new SliverPersistentHeader(delegate: new TestDelegate(), floating: true),
-          new SliverList(
-            delegate: new SliverChildListDelegate(<Widget>[
-              const SizedBox(
-                height: 300.0,
-                child: const Text('X'),
-              ),
-            ]),
-          ),
-        ],
+      new Directionality(
+        textDirection: TextDirection.ltr,
+        child: new CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: <Widget>[
+            new SliverPersistentHeader(delegate: new TestDelegate(), floating: true),
+            new SliverList(
+              delegate: new SliverChildListDelegate(<Widget>[
+                const SizedBox(
+                  height: 300.0,
+                  child: const Text('X'),
+                ),
+              ]),
+            ),
+          ],
+        ),
       ),
     );
 
@@ -255,7 +270,7 @@ class RenderBigSliver extends RenderSliver {
 }
 
 class BigSliver extends LeafRenderObjectWidget {
-  BigSliver({ Key key, this.height }) : super(key: key);
+  const BigSliver({ Key key, this.height }) : super(key: key);
 
   final double height;
 

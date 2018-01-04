@@ -14,31 +14,35 @@ void main() {
 
     await tester.pumpWidget(
       new Stack(
+        textDirection: TextDirection.ltr,
+        fit: StackFit.expand,
         children: <Widget>[
-          const Semantics(
+          new Semantics(
             // this tests that empty nodes disappear
           ),
-          const Semantics(
+          new Semantics(
             // this tests whether you can have a container with no other semantics
-            container: true
+            container: true,
           ),
-          const Semantics(
-            label: 'label' // (force a fork)
+          new Semantics(
+            label: 'label', // (force a fork)
+            textDirection: TextDirection.ltr,
           ),
         ]
       )
     );
 
     expect(semantics, hasSemantics(
-      new TestSemantics(
-        id: 0,
+      new TestSemantics.root(
         children: <TestSemantics>[
-          new TestSemantics(
+          new TestSemantics.rootChild(
             id: 1,
+            rect: TestSemantics.fullScreen,
           ),
-          new TestSemantics(
+          new TestSemantics.rootChild(
             id: 2,
             label: 'label',
+            rect: TestSemantics.fullScreen,
           ),
         ]
       )

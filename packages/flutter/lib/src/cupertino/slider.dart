@@ -10,6 +10,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import 'colors.dart';
 import 'thumb_painter.dart';
 
 /// An iOS-style slider.
@@ -30,7 +31,7 @@ import 'thumb_painter.dart';
 ///
 /// See also:
 ///
-///  * <https://developer.apple.com/ios/human-interface-guidelines/ui-controls/sliders/>
+///  * <https://developer.apple.com/ios/human-interface-guidelines/controls/sliders/>
 class CupertinoSlider extends StatefulWidget {
   /// Creates an iOS-style slider.
   ///
@@ -41,21 +42,20 @@ class CupertinoSlider extends StatefulWidget {
   ///
   /// * [value] determines currently selected value for this slider.
   /// * [onChanged] is called when the user selects a new value for the slider.
-  CupertinoSlider({
+  const CupertinoSlider({
     Key key,
     @required this.value,
     @required this.onChanged,
     this.min: 0.0,
     this.max: 1.0,
     this.divisions,
-    this.activeColor: const Color(0xFF027AFF),
-  }) : super(key: key) {
-    assert(value != null);
-    assert(min != null);
-    assert(max != null);
-    assert(value >= min && value <= max);
-    assert(divisions == null || divisions > 0);
-  }
+    this.activeColor: CupertinoColors.activeBlue,
+  }) : assert(value != null),
+       assert(min != null),
+       assert(max != null),
+       assert(value >= min && value <= max),
+       assert(divisions == null || divisions > 0),
+       super(key: key);
 
   /// The currently selected value for this slider.
   ///
@@ -85,7 +85,7 @@ class CupertinoSlider extends StatefulWidget {
   ///       _duelCommandment = newValue.round();
   ///     });
   ///   },
-  /// ),
+  /// )
   /// ```
   final ValueChanged<double> onChanged;
 
@@ -101,8 +101,6 @@ class CupertinoSlider extends StatefulWidget {
 
   /// The number of discrete divisions.
   ///
-  /// Typically used with [label] to show the current discrete value.
-  ///
   /// If null, the slider is continuous.
   final int divisions;
 
@@ -113,11 +111,11 @@ class CupertinoSlider extends StatefulWidget {
   _CupertinoSliderState createState() => new _CupertinoSliderState();
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('value: ${value.toStringAsFixed(1)}');
-    description.add('min: $min');
-    description.add('max: $max');
+  void debugFillProperties(DiagnosticPropertiesBuilder description) {
+    super.debugFillProperties(description);
+    description.add(new DoubleProperty('value', value));
+    description.add(new DoubleProperty('min', min));
+    description.add(new DoubleProperty('max', max));
   }
 }
 
@@ -140,7 +138,7 @@ class _CupertinoSliderState extends State<CupertinoSlider> with TickerProviderSt
 }
 
 class _CupertinoSliderRenderObjectWidget extends LeafRenderObjectWidget {
-  _CupertinoSliderRenderObjectWidget({
+  const _CupertinoSliderRenderObjectWidget({
     Key key,
     this.value,
     this.divisions,
@@ -163,6 +161,7 @@ class _CupertinoSliderRenderObjectWidget extends LeafRenderObjectWidget {
       activeColor: activeColor,
       onChanged: onChanged,
       vsync: vsync,
+      textDirection: Directionality.of(context),
     );
   }
 
@@ -172,14 +171,14 @@ class _CupertinoSliderRenderObjectWidget extends LeafRenderObjectWidget {
       ..value = value
       ..divisions = divisions
       ..activeColor = activeColor
-      ..onChanged = onChanged;
+      ..onChanged = onChanged
+      ..textDirection = Directionality.of(context);
     // Ticker provider cannot change since there's a 1:1 relationship between
     // the _SliderRenderObjectWidget object and the _SliderState object.
   }
 }
 
 const double _kPadding = 8.0;
-const double _kTrackHeight = 2.0;
 const Color _kTrackColor = const Color(0xFFB5B5B5);
 const double _kSliderHeight = 2.0 * (CupertinoThumbPainter.radius + _kPadding);
 const double _kSliderWidth = 176.0; // Matches Material Design slider.
@@ -187,18 +186,22 @@ final Duration _kDiscreteTransitionDuration = const Duration(milliseconds: 500);
 
 const double _kAdjustmentUnit = 0.1; // Matches iOS implementation of material slider.
 
-class _RenderCupertinoSlider extends RenderConstrainedBox implements SemanticsActionHandler {
+class _RenderCupertinoSlider extends RenderConstrainedBox {
   _RenderCupertinoSlider({
     @required double value,
     int divisions,
     Color activeColor,
-    this.onChanged,
+    ValueChanged<double> onChanged,
     TickerProvider vsync,
-  }) : _value = value,
+    @required TextDirection textDirection,
+  }) : assert(value != null && value >= 0.0 && value <= 1.0),
+       assert(textDirection != null),
+       _value = value,
        _divisions = divisions,
        _activeColor = activeColor,
+       _onChanged = onChanged,
+       _textDirection = textDirection,
        super(additionalConstraints: const BoxConstraints.tightFor(width: _kSliderWidth, height: _kSliderHeight)) {
-    assert(value != null && value >= 0.0 && value <= 1.0);
     _drag = new HorizontalDragGestureRecognizer()
       ..onStart = _handleDragStart
       ..onUpdate = _handleDragUpdate
@@ -241,7 +244,26 @@ class _RenderCupertinoSlider extends RenderConstrainedBox implements SemanticsAc
     markNeedsPaint();
   }
 
-  ValueChanged<double> onChanged;
+  ValueChanged<double> get onChanged => _onChanged;
+  ValueChanged<double> _onChanged;
+  set onChanged(ValueChanged<double> value) {
+    if (value == _onChanged)
+      return;
+    final bool wasInteractive = isInteractive;
+    _onChanged = value;
+    if (wasInteractive != isInteractive)
+      markNeedsSemanticsUpdate();
+  }
+
+  TextDirection get textDirection => _textDirection;
+  TextDirection _textDirection;
+  set textDirection(TextDirection value) {
+    assert(value != null);
+    if (_textDirection == value)
+      return;
+    _textDirection = value;
+    markNeedsPaint();
+  }
 
   AnimationController _position;
 
@@ -257,7 +279,18 @@ class _RenderCupertinoSlider extends RenderConstrainedBox implements SemanticsAc
 
   double get _trackLeft => _kPadding;
   double get _trackRight => size.width - _kPadding;
-  double get _thumbCenter => lerpDouble(_trackLeft + CupertinoThumbPainter.radius, _trackRight - CupertinoThumbPainter.radius, _value);
+  double get _thumbCenter {
+    double visualPosition;
+    switch (textDirection) {
+      case TextDirection.rtl:
+        visualPosition = 1.0 - _value;
+        break;
+      case TextDirection.ltr:
+        visualPosition = _value;
+        break;
+    }
+    return lerpDouble(_trackLeft + CupertinoThumbPainter.radius, _trackRight - CupertinoThumbPainter.radius, visualPosition);
+  }
 
   bool get isInteractive => onChanged != null;
 
@@ -271,7 +304,15 @@ class _RenderCupertinoSlider extends RenderConstrainedBox implements SemanticsAc
   void _handleDragUpdate(DragUpdateDetails details) {
     if (isInteractive) {
       final double extent = math.max(_kPadding, size.width - 2.0 * (_kPadding + CupertinoThumbPainter.radius));
-      _currentDragValue += details.primaryDelta / extent;
+      final double valueDelta = details.primaryDelta / extent;
+      switch (textDirection) {
+        case TextDirection.rtl:
+          _currentDragValue -= valueDelta;
+          break;
+        case TextDirection.ltr:
+          _currentDragValue += valueDelta;
+          break;
+      }
       onChanged(_discretizedCurrentDragValue);
     }
   }
@@ -296,9 +337,21 @@ class _RenderCupertinoSlider extends RenderConstrainedBox implements SemanticsAc
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    final Canvas canvas = context.canvas;
-
-    final double value = _position.value;
+    double visualPosition;
+    Color leftColor;
+    Color rightColor;
+    switch (textDirection) {
+      case TextDirection.rtl:
+        visualPosition = 1.0 - _position.value;
+        leftColor = _activeColor;
+        rightColor = _kTrackColor;
+        break;
+      case TextDirection.ltr:
+        visualPosition = _position.value;
+        leftColor = _kTrackColor;
+        rightColor = _activeColor;
+        break;
+    }
 
     final double trackCenter = offset.dy + size.height / 2.0;
     final double trackLeft = offset.dx + _trackLeft;
@@ -307,15 +360,16 @@ class _RenderCupertinoSlider extends RenderConstrainedBox implements SemanticsAc
     final double trackRight = offset.dx + _trackRight;
     final double trackActive = offset.dx + _thumbCenter;
 
+    final Canvas canvas = context.canvas;
     final Paint paint = new Paint();
 
-    if (value > 0.0) {
-      paint.color = _activeColor;
+    if (visualPosition > 0.0) {
+      paint.color = rightColor;
       canvas.drawRRect(new RRect.fromLTRBXY(trackLeft, trackTop, trackActive, trackBottom, 1.0, 1.0), paint);
     }
 
-    if (value < 1.0) {
-      paint.color = _kTrackColor;
+    if (visualPosition < 1.0) {
+      paint.color = leftColor;
       canvas.drawRRect(new RRect.fromLTRBXY(trackActive, trackTop, trackRight, trackBottom, 1.0, 1.0), paint);
     }
 
@@ -324,31 +378,25 @@ class _RenderCupertinoSlider extends RenderConstrainedBox implements SemanticsAc
   }
 
   @override
-  bool get isSemanticBoundary => isInteractive;
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
 
-  @override
-  SemanticsAnnotator get semanticsAnnotator => _annotate;
-
-  void _annotate(SemanticsNode semantics) {
-    if (isInteractive)
-      semantics.addAdjustmentActions();
+    config.isSemanticBoundary = isInteractive;
+    if (isInteractive) {
+      config.onIncrease = _increaseAction;
+      config.onDecrease = _decreaseAction;
+    }
   }
 
-  @override
-  void performAction(SemanticsAction action) {
-    final double unit = divisions != null ? 1.0 / divisions : _kAdjustmentUnit;
-    switch (action) {
-      case SemanticsAction.increase:
-        if (isInteractive)
-          onChanged((value + unit).clamp(0.0, 1.0));
-        break;
-      case SemanticsAction.decrease:
-        if (isInteractive)
-          onChanged((value - unit).clamp(0.0, 1.0));
-        break;
-      default:
-        assert(false);
-        break;
-    }
+  double get _semanticActionUnit => divisions != null ? 1.0 / divisions : _kAdjustmentUnit;
+
+  void _increaseAction() {
+    if (isInteractive)
+      onChanged((value + _semanticActionUnit).clamp(0.0, 1.0));
+  }
+
+  void _decreaseAction() {
+    if (isInteractive)
+      onChanged((value - _semanticActionUnit).clamp(0.0, 1.0));
   }
 }

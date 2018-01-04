@@ -6,7 +6,6 @@ import 'file_system.dart';
 import 'platform.dart';
 
 const int kDefaultObservatoryPort = 8100;
-const int kDefaultDiagnosticPort  = 8101;
 
 /// Return the absolute path of the user's home directory
 String get homeDirPath {
@@ -26,7 +25,7 @@ String _homeDirPath;
 /// and no stack trace unless the --verbose option is specified.
 /// For example: network errors
 void throwToolExit(String message, { int exitCode }) {
-  throw new ToolExit(message, exitCode: exitCode );
+  throw new ToolExit(message, exitCode: exitCode);
 }
 
 /// Specialized exception for expected situations
@@ -34,12 +33,11 @@ void throwToolExit(String message, { int exitCode }) {
 /// and no stack trace unless the --verbose option is specified.
 /// For example: network errors
 class ToolExit implements Exception {
-
   ToolExit(this.message, { this.exitCode });
 
   final String message;
   final int exitCode;
 
   @override
-  String toString() => "Exception: $message";
+  String toString() => 'Exception: $message';
 }

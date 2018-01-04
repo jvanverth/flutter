@@ -29,9 +29,41 @@ class MockApplicationPackageStore extends ApplicationPackageStore {
   );
 }
 
+class MockPollingDeviceDiscovery extends PollingDeviceDiscovery {
+  final List<Device> _devices = <Device>[];
+  final StreamController<Device> _onAddedController = new StreamController<Device>.broadcast();
+  final StreamController<Device> _onRemovedController = new StreamController<Device>.broadcast();
+
+  MockPollingDeviceDiscovery() : super('mock');
+
+  @override
+  Future<List<Device>> pollingGetDevices() async => _devices;
+
+  @override
+  bool get supportsPlatform => true;
+
+  @override
+  bool get canListAnything => true;
+
+  void addDevice(MockAndroidDevice device) {
+    _devices.add(device);
+
+    _onAddedController.add(device);
+  }
+
+  @override
+  Future<List<Device>> get devices async => _devices;
+
+  @override
+  Stream<Device> get onAdded => _onAddedController.stream;
+
+  @override
+  Stream<Device> get onRemoved => _onRemovedController.stream;
+}
+
 class MockAndroidDevice extends Mock implements AndroidDevice {
   @override
-  TargetPlatform get targetPlatform => TargetPlatform.android_arm;
+  Future<TargetPlatform> get targetPlatform async => TargetPlatform.android_arm;
 
   @override
   bool isSupported() => true;
@@ -39,7 +71,7 @@ class MockAndroidDevice extends Mock implements AndroidDevice {
 
 class MockIOSDevice extends Mock implements IOSDevice {
   @override
-  TargetPlatform get targetPlatform => TargetPlatform.ios;
+  Future<TargetPlatform> get targetPlatform async => TargetPlatform.ios;
 
   @override
   bool isSupported() => true;
@@ -47,7 +79,7 @@ class MockIOSDevice extends Mock implements IOSDevice {
 
 class MockIOSSimulator extends Mock implements IOSSimulator {
   @override
-  TargetPlatform get targetPlatform => TargetPlatform.ios;
+  Future<TargetPlatform> get targetPlatform async => TargetPlatform.ios;
 
   @override
   bool isSupported() => true;
@@ -71,8 +103,7 @@ class MockDeviceLogReader extends DeviceLogReader {
 
 void applyMocksToCommand(FlutterCommand command) {
   command
-    ..applicationPackages = new MockApplicationPackageStore()
-    ..commandValidator = () => true;
+    ..applicationPackages = new MockApplicationPackageStore();
 }
 
 /// Common functionality for tracking mock interaction

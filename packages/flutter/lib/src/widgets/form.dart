@@ -5,11 +5,11 @@
 import 'package:flutter/foundation.dart';
 
 import 'framework.dart';
-import 'routes.dart';
+import 'navigator.dart';
 import 'will_pop_scope.dart';
 
 /// An optional container for grouping together multiple form field widgets
-/// (e.g. [Input] widgets).
+/// (e.g. [TextField] widgets).
 ///
 /// Each individual form field should be wrapped in a [FormField] widget, with
 /// the [Form] widget as a common ancestor of all of those. Call methods on
@@ -21,14 +21,13 @@ class Form extends StatefulWidget {
   /// Creates a container for form fields.
   ///
   /// The [child] argument must not be null.
-  Form({
+  const Form({
     Key key,
     @required this.child,
     this.autovalidate: false,
     this.onWillPop,
-  }) : super(key: key) {
-    assert(child != null);
-  }
+  }) : assert(child != null),
+       super(key: key);
 
   /// Returns the closest [FormState] which encloses the given context.
   ///
@@ -43,7 +42,11 @@ class Form extends StatefulWidget {
     return scope?._formState;
   }
 
-  /// Root of the widget hierarchy that contains this form.
+  /// The widget below this widget in the tree.
+  ///
+  /// This is the root of the widget hierarchy that contains this form.
+  ///
+  /// {@macro flutter.widgets.child}
   final Widget child;
 
   /// If true, form fields will validate and update their error text
@@ -56,13 +59,18 @@ class Form extends StatefulWidget {
   ///
   /// If the callback returns a Future that resolves to false, the form's route
   /// will not be popped.
-  WillPopCallback onWillPop;
+  ///
+  /// See also:
+  ///
+  ///  * [WillPopScope], another widget that provides a way to intercept the
+  ///    back button.
+  final WillPopCallback onWillPop;
 
   @override
   FormState createState() => new FormState();
 }
 
-/// State assocated with a [Form] widget.
+/// State associated with a [Form] widget.
 ///
 /// A [FormState] object can be used to [save], [reset], and [validate] every
 /// [FormField] that is a descendant of the associated [Form].
@@ -132,7 +140,7 @@ class FormState extends State<Form> {
 }
 
 class _FormScope extends InheritedWidget {
-  _FormScope({
+  const _FormScope({
     Key key,
     Widget child,
     FormState formState,
@@ -194,16 +202,15 @@ class FormField<T> extends StatefulWidget {
   /// Creates a single form field.
   ///
   /// The [builder] argument must not be null.
-  FormField({
+  const FormField({
     Key key,
     @required this.builder,
     this.onSaved,
     this.validator,
     this.initialValue,
     this.autovalidate: false,
-  }) : super(key: key) {
-    assert(builder != null);
-  }
+  }) : assert(builder != null),
+       super(key: key);
 
   /// An optional method to call with the final value when the form is saved via
   /// Form.save().
@@ -284,6 +291,18 @@ class FormFieldState<T> extends State<FormField<T>> {
       _value = value;
     });
     Form.of(context)?._fieldDidChange();
+  }
+
+  /// Sets the value associated with this form field.
+  ///
+  /// This method should be only be called by subclasses that need to update
+  /// the form field value due to state changes identified during the widget
+  /// build phase, when calling `setState` is prohibited. In all other cases,
+  /// the value should be set by a call to [onChanged], which ensures that
+  /// `setState` is called.
+  @protected
+  void setValue(T value) {
+    _value = value;
   }
 
   @override

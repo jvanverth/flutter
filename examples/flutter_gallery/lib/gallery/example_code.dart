@@ -25,7 +25,7 @@ new RaisedButton(
 // Create a disabled button.
 // Buttons are disabled when onPressed isn't
 // specified or is null.
-new RaisedButton(
+const RaisedButton(
   child: const Text('BUTTON TITLE'),
   onPressed: null
 );
@@ -44,7 +44,7 @@ new FlatButton(
 // Create a disabled button.
 // Buttons are disabled when onPressed isn't
 // specified or is null.
-new FlatButton(
+const FlatButton(
   child: const Text('BUTTON TITLE'),
   onPressed: null
 );
@@ -130,7 +130,7 @@ new Checkbox(
 // Create a disabled checkbox.
 // Checkboxes are disabled when onChanged isn't
 // specified or null.
-new Checkbox(value: false, onChanged: null);
+const Checkbox(value: false, onChanged: null);
 // END
 
 
@@ -167,7 +167,7 @@ new Row(
 );
 
 // Creates a disabled radio button.
-new Radio<int>(
+const Radio<int>(
   value: 0,
   groupValue: 0,
   onChanged: null
@@ -192,7 +192,7 @@ new Switch(
 // Create a disabled switch.
 // Switches are disabled when onChanged isn't
 // specified or null.
-new Switch(value: false, onChanged: null);
+const Switch(value: false, onChanged: null);
 // END
   }
 }
@@ -224,6 +224,15 @@ new GridView.count(
     );
   }).toList(),
 );
+// END
+  }
+}
+
+
+class AnimatedImage {
+  void animatedImage() {
+// START animated_image
+new Image.network('https://example.com/animated-image.gif');
 // END
   }
 }

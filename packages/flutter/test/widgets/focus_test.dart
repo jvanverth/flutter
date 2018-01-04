@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
 
 class TestFocusable extends StatefulWidget {
-  TestFocusable({
+  const TestFocusable({
     Key key,
     this.no,
     this.yes,
@@ -47,7 +47,7 @@ class TestFocusableState extends State<TestFocusable> {
       child: new AnimatedBuilder(
         animation: focusNode,
         builder: (BuildContext context, Widget child) {
-          return new Text(focusNode.hasFocus ? widget.yes : widget.no);
+          return new Text(focusNode.hasFocus ? widget.yes : widget.no, textDirection: TextDirection.ltr);
         },
       ),
     );
@@ -59,11 +59,11 @@ void main() {
     await tester.pumpWidget(
       new Column(
         children: <Widget>[
-          new TestFocusable(
+          const TestFocusable(
             no: 'a',
             yes: 'A FOCUSED',
           ),
-          new TestFocusable(
+          const TestFocusable(
             no: 'b',
             yes: 'B FOCUSED',
           ),
@@ -110,7 +110,7 @@ void main() {
 
   testWidgets('Can blur', (WidgetTester tester) async {
     await tester.pumpWidget(
-      new TestFocusable(
+      const TestFocusable(
         no: 'a',
         yes: 'A FOCUSED',
         autofocus: false,
@@ -145,8 +145,9 @@ void main() {
         node: parentFocusScope,
         autofocus: true,
         child: new Row(
+          textDirection: TextDirection.ltr,
           children: <Widget>[
-            new TestFocusable(
+            const TestFocusable(
               no: 'a',
               yes: 'A FOCUSED',
               autofocus: false,
@@ -167,6 +168,25 @@ void main() {
     expect(find.text('a'), findsNothing);
     expect(find.text('A FOCUSED'), findsOneWidget);
 
+    expect(parentFocusScope, hasAGoodToStringDeep);
+    expect(
+      parentFocusScope.toStringDeep(minLevel: DiagnosticLevel.info),
+      equalsIgnoringHashCodes(
+          'FocusScopeNode#00000\n'
+          '   focus: FocusNode#00000(FOCUSED)\n'
+      ),
+    );
+
+    expect(WidgetsBinding.instance.focusManager.rootScope, hasAGoodToStringDeep);
+    expect(
+      WidgetsBinding.instance.focusManager.rootScope.toStringDeep(minLevel: DiagnosticLevel.info),
+      equalsIgnoringHashCodes(
+        'FocusScopeNode#00000\n'
+        ' └─child 1: FocusScopeNode#00000\n'
+        '     focus: FocusNode#00000(FOCUSED)\n'
+      ),
+    );
+
     parentFocusScope.setFirstFocus(childFocusScope);
     await tester.idle();
 
@@ -174,8 +194,9 @@ void main() {
       new FocusScope(
         node: parentFocusScope,
         child: new Row(
+          textDirection: TextDirection.ltr,
           children: <Widget>[
-            new TestFocusable(
+            const TestFocusable(
               no: 'a',
               yes: 'A FOCUSED',
               autofocus: false,
@@ -199,8 +220,9 @@ void main() {
       new FocusScope(
         node: parentFocusScope,
         child: new Row(
+          textDirection: TextDirection.ltr,
           children: <Widget>[
-            new TestFocusable(
+            const TestFocusable(
               no: 'a',
               yes: 'A FOCUSED',
               autofocus: false,

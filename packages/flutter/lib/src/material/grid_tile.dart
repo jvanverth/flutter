@@ -21,14 +21,13 @@ class GridTile extends StatelessWidget {
   /// Creates a grid tile.
   ///
   /// Must have a child. Does not typically have both a header and a footer.
-  GridTile({
+  const GridTile({
     Key key,
     this.header,
     this.footer,
     @required this.child,
-  }) : super(key: key) {
-    assert(child != null);
-  }
+  }) : assert(child != null),
+       super(key: key);
 
   /// The widget to show over the top of this grid tile.
   ///
@@ -41,6 +40,8 @@ class GridTile extends StatelessWidget {
   final Widget footer;
 
   /// The widget that fills the tile.
+  ///
+  /// {@macro flutter.widgets.child}
   final Widget child;
 
   @override
@@ -50,15 +51,15 @@ class GridTile extends StatelessWidget {
 
     final List<Widget> children = <Widget>[
       new Positioned.fill(
-        child: child
-      )
+        child: child,
+      ),
     ];
     if (header != null) {
       children.add(new Positioned(
         top: 0.0,
         left: 0.0,
         right: 0.0,
-        child: header
+        child: header,
       ));
     }
     if (footer != null) {
@@ -66,7 +67,7 @@ class GridTile extends StatelessWidget {
         left: 0.0,
         bottom: 0.0,
         right: 0.0,
-        child: footer
+        child: footer,
       ));
     }
     return new Stack(children: children);

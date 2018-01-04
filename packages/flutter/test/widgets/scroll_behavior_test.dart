@@ -6,7 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class TestScrollBehavior extends ScrollBehavior {
-  TestScrollBehavior(this.flag);
+  const TestScrollBehavior(this.flag);
 
   final bool flag;
 
@@ -25,7 +25,7 @@ void main() {
   testWidgets('Inherited ScrollConfiguration changed', (WidgetTester tester) async {
     final GlobalKey key = new GlobalKey(debugLabel: 'scrollable');
     TestScrollBehavior behavior;
-    ScrollPosition position;
+    ScrollPositionWithSingleContext position;
 
     final Widget scrollView = new SingleChildScrollView(
       key: key,
@@ -40,7 +40,7 @@ void main() {
 
     await tester.pumpWidget(
       new ScrollConfiguration(
-        behavior: new TestScrollBehavior(true),
+        behavior: const TestScrollBehavior(true),
         child: scrollView,
       ),
     );
@@ -48,14 +48,14 @@ void main() {
     expect(behavior, isNotNull);
     expect(behavior.flag, isTrue);
     expect(position.physics, const isInstanceOf<ClampingScrollPhysics>());
-    ScrollMetrics metrics = position.getMetrics();
+    ScrollMetrics metrics = position.cloneMetrics();
     expect(metrics.extentAfter, equals(400.0));
     expect(metrics.viewportDimension, equals(600.0));
 
     // Same Scrollable, different ScrollConfiguration
     await tester.pumpWidget(
       new ScrollConfiguration(
-        behavior: new TestScrollBehavior(false),
+        behavior: const TestScrollBehavior(false),
         child: scrollView,
       ),
     );
@@ -64,7 +64,7 @@ void main() {
     expect(behavior.flag, isFalse);
     expect(position.physics, const isInstanceOf<BouncingScrollPhysics>());
     // Regression test for https://github.com/flutter/flutter/issues/5856
-    metrics = position.getMetrics();
+    metrics = position.cloneMetrics();
     expect(metrics.extentAfter, equals(400.0));
     expect(metrics.viewportDimension, equals(600.0));
   });

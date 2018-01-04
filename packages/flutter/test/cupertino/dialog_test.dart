@@ -23,11 +23,11 @@ void main() {
                       title: const Text('The title'),
                       content: const Text('The content'),
                       actions: <Widget>[
-                        new CupertinoDialogAction(
+                        const CupertinoDialogAction(
                           child: const Text('Cancel'),
                         ),
                         new CupertinoDialogAction(
-                          isDestructive: true,
+                          isDestructiveAction: true,
                           onPressed: () {
                             didDelete = true;
                             Navigator.pop(context);
@@ -63,15 +63,46 @@ void main() {
     expect(find.text('Delete'), findsNothing);
   });
 
-  testWidgets('Dialog action styles', (WidgetTester tester) async {
-    await tester.pumpWidget(new CupertinoDialogAction(
-      isDestructive: true,
+  testWidgets('Dialog destructive action styles', (WidgetTester tester) async {
+    await tester.pumpWidget(boilerplate(const CupertinoDialogAction(
+      isDestructiveAction: true,
       child: const Text('Ok'),
-    ));
+    )));
 
     final DefaultTextStyle widget = tester.widget(find.byType(DefaultTextStyle));
 
     expect(widget.style.color.red, greaterThan(widget.style.color.blue));
     expect(widget.style.color.alpha, lessThan(255));
   });
+
+  testWidgets('Dialog default action styles', (WidgetTester tester) async {
+    await tester.pumpWidget(boilerplate(const CupertinoDialogAction(
+      isDefaultAction: true,
+      child: const Text('Ok'),
+    )));
+
+    final DefaultTextStyle widget = tester.widget(find.byType(DefaultTextStyle));
+
+    expect(widget.style.fontWeight, equals(FontWeight.w600));
+  });
+
+  testWidgets('Default and destructive style', (WidgetTester tester) async {
+    await tester.pumpWidget(boilerplate(const CupertinoDialogAction(
+      isDefaultAction: true,
+      isDestructiveAction: true,
+      child: const Text('Ok'),
+    )));
+
+    final DefaultTextStyle widget = tester.widget(find.byType(DefaultTextStyle));
+
+    expect(widget.style.fontWeight, equals(FontWeight.w600));
+    expect(widget.style.color.red, greaterThan(widget.style.color.blue));
+  });
+}
+
+Widget boilerplate(Widget child) {
+  return new Directionality(
+    textDirection: TextDirection.ltr,
+    child: child,
+  );
 }

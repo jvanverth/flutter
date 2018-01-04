@@ -26,19 +26,17 @@ typedef Future<Map<String, String>> ServiceExtensionCallback(Map<String, String>
 /// "bindings").
 ///
 /// To use this class in a mixin, inherit from it and implement
-/// [initInstances()]. The mixin is guaranteed to only be constructed
-/// once in the lifetime of the app (more precisely, it will assert if
-/// constructed twice in checked mode).
+/// [initInstances()]. The mixin is guaranteed to only be constructed once in
+/// the lifetime of the app (more precisely, it will assert if constructed twice
+/// in checked mode).
 ///
-/// The top-most layer used to write the application will have a
-/// concrete class that inherits from BindingBase and uses all the
-/// various BindingBase mixins (such as [ServicesBinding]). For example, the
-/// Widgets library in flutter introduces a binding called
-/// [WidgetsFlutterBinding]. The relevant library defines how to create
-/// the binding. It could be implied (for example,
-/// [WidgetsFlutterBinding] is automatically started from [runApp]), or
-/// the application might be required to explicitly call the
-/// constructor.
+/// The top-most layer used to write the application will have a concrete class
+/// that inherits from [BindingBase] and uses all the various [BindingBase]
+/// mixins (such as [ServicesBinding]). For example, the Widgets library in
+/// Flutter introduces a binding called [WidgetsFlutterBinding]. The relevant
+/// library defines how to create the binding. It could be implied (for example,
+/// [WidgetsFlutterBinding] is automatically started from [runApp]), or the
+/// application might be required to explicitly call the constructor.
 abstract class BindingBase {
   /// Default abstract constructor for bindings.
   ///
@@ -77,7 +75,7 @@ abstract class BindingBase {
   @mustCallSuper
   void initInstances() {
     assert(!_debugInitialized);
-    assert(() { _debugInitialized = true; return true; });
+    assert(() { _debugInitialized = true; return true; }());
   }
 
   /// Called when the binding is initialized, to register service
@@ -106,15 +104,15 @@ abstract class BindingBase {
     assert(!_debugServiceExtensionsRegistered);
     registerSignalServiceExtension(
       name: 'reassemble',
-      callback: reassembleApplication
+      callback: reassembleApplication,
     );
     registerSignalServiceExtension(
       name: 'exit',
-      callback: _exitApplication
+      callback: _exitApplication,
     );
     registerSignalServiceExtension(
       name: 'frameworkPresent',
-      callback: () => new Future<Null>.value()
+      callback: () => new Future<Null>.value(),
     );
     assert(() {
       registerServiceExtension(
@@ -145,21 +143,87 @@ abstract class BindingBase {
         }
       );
       return true;
-    });
-    assert(() { _debugServiceExtensionsRegistered = true; return true; });
+    }());
+    assert(() { _debugServiceExtensionsRegistered = true; return true; }());
   }
 
-  /// Called when the ext.flutter.reassemble signal is sent by
-  /// development tools.
+  /// Whether [lockEvents] is currently locking events.
   ///
-  /// This is used by development tools when the application code has
-  /// changed, to cause the application to pick up any changed code.
-  /// Bindings are expected to use this method to reregister anything
-  /// that uses closures, so that they do not keep pointing to old
-  /// code, and to flush any caches of previously computed values, in
-  /// case the new code would compute them differently.
+  /// Binding subclasses that fire events should check this first, and if it is
+  /// set, queue events instead of firing them.
+  ///
+  /// Events should be flushed when [unlocked] is called.
+  @protected
+  bool get locked => _lockCount > 0;
+  int _lockCount = 0;
+
+  /// Locks the dispatching of asynchronous events and callbacks until the
+  /// callback's future completes.
+  ///
+  /// This causes input lag and should therefore be avoided when possible. It is
+  /// primarily intended for development features, in particular to allow
+  /// [reassembleApplication] to block input while it walks the tree (which it
+  /// partially does asynchronously).
+  ///
+  /// The [Future] returned by the `callback` argument is returned by [lockEvents].
+  @protected
+  Future<Null> lockEvents(Future<Null> callback()) {
+    assert(callback != null);
+    _lockCount += 1;
+    final Future<Null> future = callback();
+    assert(future != null, 'The lockEvents() callback returned null; it should return a Future<Null> that completes when the lock is to expire.');
+    future.whenComplete(() {
+      _lockCount -= 1;
+      if (!locked)
+        unlocked();
+    });
+    return future;
+  }
+
+  /// Called by [lockEvents] when events get unlocked.
+  ///
+  /// This should flush any events that were queued while [locked] was true.
+  @protected
   @mustCallSuper
+  void unlocked() {
+    assert(!locked);
+  }
+
+  /// Cause the entire application to redraw, e.g. after a hot reload.
+  ///
+  /// This is used by development tools when the application code has changed,
+  /// to cause the application to pick up any changed code. It can be triggered
+  /// manually by sending the `ext.flutter.reassemble` service extension signal.
+  ///
+  /// This method is very computationally expensive and should not be used in
+  /// production code. There is never a valid reason to cause the entire
+  /// application to repaint in production. All aspects of the Flutter framework
+  /// know how to redraw when necessary. It is only necessary in development
+  /// when the code is literally changed on the fly (e.g. in hot reload) or when
+  /// debug flags are being toggled.
+  ///
+  /// While this method runs, events are locked (e.g. pointer events are not
+  /// dispatched).
+  ///
+  /// Subclasses (binding classes) should override [performReassemble] to react
+  /// to this method being called. This method itself should not be overridden.
   Future<Null> reassembleApplication() {
+    return lockEvents(performReassemble);
+  }
+
+  /// This method is called by [reassembleApplication] to actually cause the
+  /// application to reassemble, e.g. after a hot reload.
+  ///
+  /// Bindings are expected to use this method to reregister anything that uses
+  /// closures, so that they do not keep pointing to old code, and to flush any
+  /// caches of previously computed values, in case the new code would compute
+  /// them differently. For example, the rendering layer triggers the entire
+  /// application to repaint when this is called.
+  ///
+  /// Do not call this method directly. Instead, use [reassembleApplication].
+  @mustCallSuper
+  @protected
+  Future<Null> performReassemble() {
     FlutterError.resetErrorCount();
     return new Future<Null>.value();
   }
@@ -280,7 +344,7 @@ abstract class BindingBase {
   /// extension method is called. The callback must return a [Future]
   /// that either eventually completes to a return value in the form
   /// of a name/value map where the values can all be converted to
-  /// JSON using [JSON.encode], or fails. In case of failure, the
+  /// JSON using `JSON.encode()` (see [JsonCodec.encode]), or fails. In case of failure, the
   /// failure is reported to the remote caller and is dumped to the
   /// logs.
   ///

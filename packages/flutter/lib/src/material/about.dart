@@ -12,10 +12,8 @@ import 'app_bar.dart';
 import 'debug.dart';
 import 'dialog.dart';
 import 'flat_button.dart';
-import 'icon.dart';
-import 'icon_theme.dart';
-import 'icon_theme_data.dart';
 import 'list_tile.dart';
+import 'material_localizations.dart';
 import 'page.dart';
 import 'progress_indicator.dart';
 import 'scaffold.dart';
@@ -39,7 +37,7 @@ class AboutListTile extends StatelessWidget {
   /// The arguments are all optional. The application name, if omitted, will be
   /// derived from the nearest [Title] widget. The version, icon, and legalese
   /// values default to the empty string.
-  AboutListTile({
+  const AboutListTile({
     Key key,
     this.icon: const Icon(null),
     this.child,
@@ -111,7 +109,8 @@ class AboutListTile extends StatelessWidget {
     assert(debugCheckHasMaterial(context));
     return new ListTile(
       leading: icon,
-      title: child ?? new Text('About ${applicationName ?? _defaultApplicationName(context)}'),
+      title: child ??
+        new Text(MaterialLocalizations.of(context).aboutListTileTitle(applicationName ?? _defaultApplicationName(context))),
       onTap: () {
         showAboutDialog(
           context: context,
@@ -139,6 +138,9 @@ class AboutListTile extends StatelessWidget {
 ///
 /// The licenses shown on the [LicensePage] are those returned by the
 /// [LicenseRegistry] API, which can be used to add more licenses to the list.
+///
+/// The `context` argument is passed to [showDialog], the documentation for
+/// which discusses how it is used.
 void showAboutDialog({
   @required BuildContext context,
   String applicationName,
@@ -210,7 +212,7 @@ class AboutDialog extends StatelessWidget {
   /// The arguments are all optional. The application name, if omitted, will be
   /// derived from the nearest [Title] widget. The version, icon, and legalese
   /// values default to the empty string.
-  AboutDialog({
+  const AboutDialog({
     Key key,
     this.applicationName,
     this.applicationVersion,
@@ -290,7 +292,7 @@ class AboutDialog extends StatelessWidget {
       ),
       actions: <Widget>[
         new FlatButton(
-          child: const Text('VIEW LICENSES'),
+          child: new Text(MaterialLocalizations.of(context).viewLicensesButtonLabel),
           onPressed: () {
             showLicensePage(
               context: context,
@@ -302,7 +304,7 @@ class AboutDialog extends StatelessWidget {
           }
         ),
         new FlatButton(
-          child: const Text('CLOSE'),
+          child: new Text(MaterialLocalizations.of(context).closeButtonLabel),
           onPressed: () {
             Navigator.pop(context);
           }
@@ -407,7 +409,7 @@ class _LicensePageState extends State<LicensePage> {
           } else {
             assert(paragraph.indent >= 0);
             _licenses.add(new Padding(
-              padding: new EdgeInsets.only(top: 8.0, left: 16.0 * paragraph.indent),
+              padding: new EdgeInsetsDirectional.only(top: 8.0, start: 16.0 * paragraph.indent),
               child: new Text(paragraph.text)
             ));
           }
@@ -423,6 +425,7 @@ class _LicensePageState extends State<LicensePage> {
   Widget build(BuildContext context) {
     final String name = widget.applicationName ?? _defaultApplicationName(context);
     final String version = widget.applicationVersion ?? _defaultApplicationVersion(context);
+    final MaterialLocalizations localizations = MaterialLocalizations.of(context);
     final List<Widget> contents = <Widget>[
       new Text(name, style: Theme.of(context).textTheme.headline, textAlign: TextAlign.center),
       new Text(version, style: Theme.of(context).textTheme.body1, textAlign: TextAlign.center),
@@ -434,24 +437,30 @@ class _LicensePageState extends State<LicensePage> {
     ];
     contents.addAll(_licenses);
     if (!_loaded) {
-      contents.add(new Padding(
+      contents.add(const Padding(
         padding: const EdgeInsets.symmetric(vertical: 24.0),
-        child: new Center(
-          child: new CircularProgressIndicator()
+        child: const Center(
+          child: const CircularProgressIndicator()
         )
       ));
     }
     return new Scaffold(
       appBar: new AppBar(
-        title: const Text('Licenses')
+        title: new Text(localizations.licensesPageTitle),
       ),
-      body: new DefaultTextStyle(
-        style: Theme.of(context).textTheme.caption,
-        child: new Scrollbar(
-          child: new ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
-            shrinkWrap: true,
-            children: contents,
+      // All of the licenses page text is English. We don't want localized text
+      // or text direction.
+      body: new Localizations.override(
+        locale: const Locale('en', 'US'),
+        context: context,
+        child: new DefaultTextStyle(
+          style: Theme.of(context).textTheme.caption,
+          child: new Scrollbar(
+            child: new ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
+              shrinkWrap: true,
+              children: contents,
+            ),
           ),
         ),
       ),

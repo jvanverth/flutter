@@ -42,16 +42,15 @@ final List<Palette> allPalettes = <Palette>[
 
 
 class ColorItem extends StatelessWidget {
-  ColorItem({
+  const ColorItem({
     Key key,
     @required this.index,
     @required this.color,
     this.prefix: '',
-  }) : super(key: key) {
-    assert(index != null);
-    assert(color != null);
-    assert(prefix != null);
-  }
+  }) : assert(index != null),
+       assert(color != null),
+       assert(prefix != null),
+       super(key: key);
 
   final int index;
   final Color color;
@@ -65,13 +64,17 @@ class ColorItem extends StatelessWidget {
       height: kColorItemHeight,
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       color: color,
-      child: new Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: <Widget>[
-          new Text('$prefix$index'),
-          new Text(colorString()),
-        ],
+      child: new SafeArea(
+        top: false,
+        bottom: false,
+        child: new Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            new Text('$prefix$index'),
+            new Text(colorString()),
+          ],
+        ),
       ),
     );
   }
@@ -81,9 +84,11 @@ class PaletteTabView extends StatelessWidget {
   static const List<int> primaryKeys = const <int>[50, 100, 200, 300, 400, 500, 600, 700, 800, 900];
   static const List<int> accentKeys = const <int>[100, 200, 400, 700];
 
-  PaletteTabView({ Key key, this.colors }) : super(key: key) {
-    assert(colors != null && colors.isValid);
-  }
+  PaletteTabView({
+    Key key,
+    @required this.colors,
+  }) : assert(colors != null && colors.isValid),
+       super(key: key);
 
   final Palette colors;
 
@@ -124,7 +129,7 @@ class ColorsDemo extends StatelessWidget {
       length: allPalettes.length,
       child: new Scaffold(
         appBar: new AppBar(
-          elevation: 0,
+          elevation: 0.0,
           title: const Text('Colors'),
           bottom: new TabBar(
             isScrollable: true,

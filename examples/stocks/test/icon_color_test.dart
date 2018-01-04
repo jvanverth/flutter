@@ -46,9 +46,9 @@ void checkIconColor(WidgetTester tester, String label, Color color) {
 }
 
 void main() {
-  stock_data.StockDataFetcher.actuallyFetchData = false;
+  stock_data.StockData.actuallyFetchData = false;
 
-  testWidgets("Test icon colors", (WidgetTester tester) async {
+  testWidgets('Icon colors', (WidgetTester tester) async {
     stocks.main(); // builds the app and schedules a frame but doesn't trigger one
     await tester.pump(); // see https://github.com/flutter/flutter/issues/1865
     await tester.pump(); // triggers a frame
@@ -61,8 +61,8 @@ void main() {
     expect(find.text('Account Balance'), findsNothing);
 
     // drag the drawer out
-    final Offset left = new Offset(0.0, ui.window.physicalSize.height / 2.0);
-    final Offset right = new Offset(ui.window.physicalSize.width, left.dy);
+    final Offset left = new Offset(0.0, (ui.window.physicalSize / ui.window.devicePixelRatio).height / 2.0);
+    final Offset right = new Offset((ui.window.physicalSize / ui.window.devicePixelRatio).width, left.dy);
     final TestGesture gesture = await tester.startGesture(left);
     await tester.pump();
     await gesture.moveTo(right);

@@ -8,31 +8,8 @@ import 'package:flutter/widgets.dart';
 import 'colors.dart';
 import 'constants.dart';
 import 'debug.dart';
-import 'icon_theme.dart';
-import 'icon_theme_data.dart';
 import 'ink_well.dart';
 import 'theme.dart';
-
-/// The kind of list tiles contained in a material design list.
-///
-/// See also:
-///
-///  * [ListTile]
-///  * [kListTileExtent]
-///  * <https://material.google.com/components/lists.html#lists-specs>
-enum MaterialListType {
-  /// A list tile that contains a single line of text.
-  oneLine,
-
-  /// A list tile that contains a [CircleAvatar] followed by a single line of text.
-  oneLineWithAvatar,
-
-  /// A list tile that contains two lines of text.
-  twoLine,
-
-  /// A list tile that contains three lines of text.
-  threeLine,
-}
 
 /// Defines the title font used for [ListTile] descendants of a [ListTileTheme].
 ///
@@ -47,21 +24,6 @@ enum ListTileStyle {
   drawer,
 }
 
-/// The vertical extent of the different types of material list tiles.
-///
-/// See also:
-///
-///  * [MaterialListType]
-///  * [ListTile]
-///  * [kListTileExtent]
-///  * <https://material.google.com/components/lists.html#lists-specs>
-Map<MaterialListType, double> kListTileExtent = const <MaterialListType, double>{
-  MaterialListType.oneLine: 48.0,
-  MaterialListType.oneLineWithAvatar: 56.0,
-  MaterialListType.twoLine: 72.0,
-  MaterialListType.threeLine: 88.0,
-};
-
 /// An inherited widget that defines  color and style parameters for [ListTile]s
 /// in this widget's subtree.
 ///
@@ -71,7 +33,8 @@ Map<MaterialListType, double> kListTileExtent = const <MaterialListType, double>
 /// The [Drawer] widget specifies a tile theme for its children which sets
 /// [style] to [ListTileStyle.drawer].
 class ListTileTheme extends InheritedWidget {
-  /// Creates an inherited widget that defines color and style parameters for [ListTile]s.
+  /// Creates a list tile theme that controls the color and style parameters for
+  /// [ListTile]s.
   const ListTileTheme({
     Key key,
     this.dense: false,
@@ -81,6 +44,36 @@ class ListTileTheme extends InheritedWidget {
     this.textColor,
     Widget child,
   }) : super(key: key, child: child);
+
+  /// Creates a list tile theme that controls the color and style parameters for
+  /// [ListTile]s, and merges in the current list tile theme, if any.
+  ///
+  /// The [child] argument must not be null.
+  static Widget merge({
+    Key key,
+    bool dense,
+    ListTileStyle style,
+    Color selectedColor,
+    Color iconColor,
+    Color textColor,
+    @required Widget child,
+  }) {
+    assert(child != null);
+    return new Builder(
+      builder: (BuildContext context) {
+        final ListTileTheme parent = ListTileTheme.of(context);
+        return new ListTileTheme(
+          key: key,
+          dense: dense ?? parent.dense,
+          style: style ?? parent.style,
+          selectedColor: selectedColor ?? parent.selectedColor,
+          iconColor: iconColor ?? parent.iconColor,
+          textColor: textColor ?? parent.textColor,
+          child: child,
+        );
+      },
+    );
+  }
 
   /// If true then [ListTile]s will have the vertically dense layout.
   final bool dense;
@@ -119,6 +112,27 @@ class ListTileTheme extends InheritedWidget {
   }
 }
 
+/// Where to place the control in widgets that use [ListTile] to position a
+/// control next to a label.
+///
+/// See also:
+///
+///  * [CheckboxListTile], which combines a [ListTile] with a [Checkbox].
+///  * [RadioListTile], which combines a [ListTile] with a [Radio] button.
+enum ListTileControlAffinity {
+  /// Position the control on the leading edge, and the secondary widget, if
+  /// any, on the trailing edge.
+  leading,
+
+  /// Position the control on the trailing edge, and the secondary widget, if
+  /// any, on the leading edge.
+  trailing,
+
+  /// Position the control relative to the text in the fashion that is typical
+  /// for the current platform, and place the secondary widget on the opposite
+  /// side.
+  platform,
+}
 
 /// A single fixed-height row that typically contains some text as well as
 /// a leading or trailing icon.
@@ -137,9 +151,37 @@ class ListTileTheme extends InheritedWidget {
 /// height based on their contents. If you are looking for a widget that allows
 /// for arbitrary layout in a row, consider [Row].
 ///
-/// List tiles are typically used in [MaterialList]s or in [Card]s.
+/// List tiles are typically used in [ListView]s, or arranged in [Column]s in
+/// [Drawer]s and [Card]s.
 ///
 /// Requires one of its ancestors to be a [Material] widget.
+///
+/// ## Sample code
+///
+/// Here is a simple tile with an icon and some text.
+///
+/// ```dart
+/// new ListTile(
+///   leading: const Icon(Icons.event_seat),
+///   title: const Text('The seat for the narrator'),
+/// )
+/// ```
+///
+/// Tiles can be much more elaborate. Here is a tile which can be tapped, but
+/// which is disabled when the `_act` variable is not 2. When the tile is
+/// tapped, the whole row has an ink splash effect (see [InkWell]).
+///
+/// ```dart
+/// int _act = 1;
+/// // ...
+/// new ListTile(
+///   leading: const Icon(Icons.flight_land),
+///   title: const Text('Trix\'s airplane'),
+///   subtitle: _act != 2 ? const Text('The airplane is only in Act II.') : null,
+///   enabled: _act == 2,
+///   onTap: () { /* react to the tile being tapped */ }
+/// )
+/// ```
 ///
 /// See also:
 ///
@@ -151,7 +193,8 @@ class ListTileTheme extends InheritedWidget {
 ///  * [Card], which can be used with [Column] to show a few [ListTile]s.
 ///  * [Divider], which can be used to separate [ListTile]s.
 ///  * [ListTile.divideTiles], a utility for inserting [Divider]s in between [ListTile]s.
-///  * [kListTileExtent], which defines the ListTile sizes.
+///  * [CheckboxListTile], [RadioListTile], and [SwitchListTile], widgets
+///    that combine [ListTile] with other controls.
 ///  * <https://material.google.com/components/lists.html>
 class ListTile extends StatelessWidget {
   /// Creates a list tile.
@@ -159,7 +202,7 @@ class ListTile extends StatelessWidget {
   /// If [isThreeLine] is true, then [subtitle] must not be null.
   ///
   /// Requires one of its ancestors to be a [Material] widget.
-  ListTile({
+  const ListTile({
     Key key,
     this.leading,
     this.title,
@@ -171,11 +214,11 @@ class ListTile extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.selected: false,
-  }) : super(key: key) {
-    assert(isThreeLine != null);
-    assert(enabled != null);
-    assert(selected != null);
-  }
+  }) : assert(isThreeLine != null),
+       assert(enabled != null),
+       assert(selected != null),
+       assert(!isThreeLine || subtitle != null),
+       super(key: key);
 
   /// A widget to display before the title.
   ///
@@ -251,7 +294,7 @@ class ListTile extends StatelessWidget {
         position: DecorationPosition.foreground,
         decoration: new BoxDecoration(
           border: new Border(
-            bottom: new BorderSide(color: dividerColor),
+            bottom: new BorderSide(color: dividerColor, width: 0.0),
           ),
         ),
         child: tile,
@@ -308,9 +351,19 @@ class ListTile extends StatelessWidget {
   }
 
   TextStyle _titleTextStyle(ThemeData theme, ListTileTheme tileTheme) {
-    final TextStyle style = tileTheme?.style == ListTileStyle.drawer
-      ? theme.textTheme.body2
-      : theme.textTheme.subhead;
+    TextStyle style;
+    if (tileTheme != null) {
+      switch (tileTheme.style) {
+        case ListTileStyle.drawer:
+          style = theme.textTheme.body2;
+          break;
+        case ListTileStyle.list:
+          style = theme.textTheme.subhead;
+          break;
+      }
+    } else {
+      style = theme.textTheme.subhead;
+    }
     final Color color = _textColor(theme, tileTheme, style.color);
     return _denseLayout(tileTheme)
       ? style.copyWith(fontSize: 13.0, color: color)
@@ -344,14 +397,18 @@ class ListTile extends StatelessWidget {
     // Overall, the list tile is a Row() with these children.
     final List<Widget> children = <Widget>[];
 
+    IconThemeData iconThemeData;
+    if (leading != null || trailing != null)
+      iconThemeData = new IconThemeData(color: _iconColor(theme, tileTheme));
+
     if (leading != null) {
       children.add(IconTheme.merge(
-        data: new IconThemeData(color: _iconColor(theme, tileTheme)),
+        data: iconThemeData,
         child: new Container(
-          margin: const EdgeInsets.only(right: 16.0),
+          margin: const EdgeInsetsDirectional.only(end: 16.0),
           width: 40.0,
-          alignment: FractionalOffset.centerLeft,
-          child: leading
+          alignment: AlignmentDirectional.centerStart,
+          child: leading,
         ),
       ));
     }
@@ -372,8 +429,8 @@ class ListTile extends StatelessWidget {
             style: _subtitleTextStyle(theme, tileTheme),
             duration: kThemeChangeDuration,
             child: subtitle,
-          )
-        ]
+          ),
+        ],
       );
     }
     children.add(new Expanded(
@@ -381,21 +438,36 @@ class ListTile extends StatelessWidget {
     ));
 
     if (trailing != null) {
-      children.add(new Container(
-        margin: const EdgeInsets.only(left: 16.0),
-        alignment: FractionalOffset.centerRight,
-        child: trailing,
+      children.add(IconTheme.merge(
+        data: iconThemeData,
+        child: new Container(
+          margin: const EdgeInsetsDirectional.only(start: 16.0),
+          alignment: AlignmentDirectional.centerEnd,
+          child: trailing,
+        ),
       ));
     }
 
     return new InkWell(
       onTap: enabled ? onTap : null,
       onLongPress: enabled ? onLongPress : null,
-      child: new Container(
-        height: tileHeight,
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: new Row(children: children),
-      )
+      child: new Semantics(
+        selected: selected,
+        child: new ConstrainedBox(
+          constraints: new BoxConstraints(minHeight: tileHeight),
+          child: new Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: new UnconstrainedBox(
+              constrainedAxis: Axis.horizontal,
+              child: new SafeArea(
+                top: false,
+                bottom: false,
+                child: new Row(children: children),
+              ),
+            ),
+          )
+        ),
+      ),
     );
   }
 }

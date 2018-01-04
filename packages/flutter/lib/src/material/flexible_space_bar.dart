@@ -30,7 +30,7 @@ class FlexibleSpaceBar extends StatefulWidget {
   /// Creates a flexible space bar.
   ///
   /// Most commonly used in the [AppBar.flexibleSpace] field.
-  FlexibleSpaceBar({
+  const FlexibleSpaceBar({
     Key key,
     this.title,
     this.background,
@@ -44,7 +44,7 @@ class FlexibleSpaceBar extends StatefulWidget {
 
   /// Shown behind the [title] when expanded.
   ///
-  /// Typically an [AssetImage] widget with [AssetImage.fit] set to [BoxFit.cover].
+  /// Typically an [Image] widget with [Image.fit] set to [BoxFit.cover].
   final Widget background;
 
   /// Whether the title should be centered.
@@ -88,6 +88,20 @@ class _FlexibleSpaceBarState extends State<FlexibleSpaceBar> {
         return false;
       case TargetPlatform.iOS:
         return true;
+    }
+    return null;
+  }
+
+  Alignment _getTitleAlignment(bool effectiveCenterTitle) {
+    if (effectiveCenterTitle)
+      return Alignment.bottomCenter;
+    final TextDirection textDirection = Directionality.of(context);
+    assert(textDirection != null);
+    switch (textDirection) {
+      case TextDirection.rtl:
+        return Alignment.bottomRight;
+      case TextDirection.ltr:
+        return Alignment.bottomLeft;
     }
     return null;
   }
@@ -138,10 +152,10 @@ class _FlexibleSpaceBarState extends State<FlexibleSpaceBar> {
         final double scaleValue = new Tween<double>(begin: 1.5, end: 1.0).lerp(t);
         final Matrix4 scaleTransform = new Matrix4.identity()
           ..scale(scaleValue, scaleValue, 1.0);
-        final FractionalOffset titleAlignment = effectiveCenterTitle ? FractionalOffset.bottomCenter : FractionalOffset.bottomLeft;
+        final Alignment titleAlignment = _getTitleAlignment(effectiveCenterTitle);
         children.add(new Container(
-          padding: new EdgeInsets.only(
-            left: effectiveCenterTitle ? 0.0 : 72.0,
+          padding: new EdgeInsetsDirectional.only(
+            start: effectiveCenterTitle ? 0.0 : 72.0,
             bottom: 16.0
           ),
           child: new Transform(
@@ -161,7 +175,7 @@ class _FlexibleSpaceBarState extends State<FlexibleSpaceBar> {
 }
 
 class _FlexibleSpaceBarSettings extends InheritedWidget {
-  _FlexibleSpaceBarSettings({
+  const _FlexibleSpaceBarSettings({
     Key key,
     this.toolbarOpacity,
     this.minExtent,

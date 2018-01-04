@@ -12,6 +12,10 @@ import '../globals.dart';
 import '../runner/flutter_command.dart';
 
 class InstallCommand extends FlutterCommand {
+  InstallCommand() {
+    requiresPubspecYaml();
+  }
+
   @override
   final String name = 'install';
 
@@ -21,34 +25,33 @@ class InstallCommand extends FlutterCommand {
   Device device;
 
   @override
-  Future<Null> verifyThenRunCommand() async {
-    commandValidator();
+  Future<Null> validateCommand() async {
+    await super.validateCommand();
     device = await findTargetDevice();
     if (device == null)
       throwToolExit('No target device found');
-    return super.verifyThenRunCommand();
   }
 
   @override
   Future<Null> runCommand() async {
-    final ApplicationPackage package = applicationPackages.getPackageForPlatform(device.targetPlatform);
+    final ApplicationPackage package = await applicationPackages.getPackageForPlatform(await device.targetPlatform);
 
     Cache.releaseLockEarly();
 
     printStatus('Installing $package to $device...');
 
-    if (!installApp(device, package))
+    if (!await installApp(device, package))
       throwToolExit('Install failed');
   }
 }
 
-bool installApp(Device device, ApplicationPackage package, { bool uninstall: true }) {
+Future<bool> installApp(Device device, ApplicationPackage package, { bool uninstall: true }) async {
   if (package == null)
     return false;
 
-  if (uninstall && device.isAppInstalled(package)) {
+  if (uninstall && await device.isAppInstalled(package)) {
     printStatus('Uninstalling old version...');
-    if (!device.uninstallApp(package))
+    if (!await device.uninstallApp(package))
       printError('Warning: uninstalling old version failed');
   }
 

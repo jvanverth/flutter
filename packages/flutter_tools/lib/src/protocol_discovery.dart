@@ -5,98 +5,101 @@
 import 'dart:async';
 
 import 'base/common.dart';
+import 'base/io.dart';
 import 'base/port_scanner.dart';
 import 'device.dart';
 import 'globals.dart';
 
-/// Discover service protocol on a device
-/// and forward the service protocol device port to the host.
+/// Discovers a specific service protocol on a device, and forwards the service
+/// protocol device port to the host.
 class ProtocolDiscovery {
-  /// [logReader] - a [DeviceLogReader] to look for service messages in.
-  ProtocolDiscovery(DeviceLogReader logReader, String serviceName,
-      {this.portForwarder, this.hostPort, this.defaultHostPort})
-      : _logReader = logReader, _serviceName = serviceName {
-    assert(_logReader != null);
-    _subscription = _logReader.logLines.listen(_onLine);
-    assert(portForwarder == null || defaultHostPort != null);
+  ProtocolDiscovery._(
+    this.logReader,
+    this.serviceName, {
+    this.portForwarder,
+    this.hostPort,
+    this.defaultHostPort,
+    this.ipv6,
+  }) : assert(logReader != null),
+       assert(portForwarder == null || defaultHostPort != null),
+       _prefix = '$serviceName listening on ' {
+    _deviceLogSubscription = logReader.logLines.listen(_handleLine);
   }
 
-  factory ProtocolDiscovery.observatory(DeviceLogReader logReader,
-          {DevicePortForwarder portForwarder, int hostPort}) =>
-      new ProtocolDiscovery(logReader, kObservatoryService,
-          portForwarder: portForwarder,
-          hostPort: hostPort,
-          defaultHostPort: kDefaultObservatoryPort);
-
-  factory ProtocolDiscovery.diagnosticService(DeviceLogReader logReader,
-          {DevicePortForwarder portForwarder, int hostPort}) =>
-      new ProtocolDiscovery(logReader, kDiagnosticService,
-          portForwarder: portForwarder,
-          hostPort: hostPort,
-          defaultHostPort: kDefaultDiagnosticPort);
-
-  static const String kObservatoryService = 'Observatory';
-  static const String kDiagnosticService = 'Diagnostic server';
-
-  final DeviceLogReader _logReader;
-  final String _serviceName;
-  final DevicePortForwarder portForwarder;
-  int hostPort;
-  final int defaultHostPort;
-
-  Completer<Uri> _completer = new Completer<Uri>();
-  StreamSubscription<String> _subscription;
-
-  /// The [Future] returned by this function will complete when the next service
-  /// Uri is found.
-  Future<Uri> nextUri() async {
-    final Uri deviceUri = await _completer.future.timeout(
-      const Duration(seconds: 60), onTimeout: () {
-        throwToolExit('Timeout while attempting to retrieve Uri for $_serviceName');
-      }
+  factory ProtocolDiscovery.observatory(
+    DeviceLogReader logReader, {
+    DevicePortForwarder portForwarder,
+    int hostPort,
+    bool ipv6: false,
+  }) {
+    const String kObservatoryService = 'Observatory';
+    return new ProtocolDiscovery._(
+      logReader, kObservatoryService,
+      portForwarder: portForwarder,
+      hostPort: hostPort,
+      defaultHostPort: kDefaultObservatoryPort,
+      ipv6: ipv6,
     );
-    printTrace('$_serviceName Uri on device: $deviceUri');
-    Uri hostUri;
-    if (portForwarder != null) {
-      final int devicePort = deviceUri.port;
-      hostPort ??= await portScanner.findPreferredPort(defaultHostPort);
-      hostPort = await portForwarder
-          .forward(devicePort, hostPort: hostPort)
-          .timeout(const Duration(seconds: 60), onTimeout: () {
-            throwToolExit('Timeout while atempting to foward device port $devicePort for $_serviceName');
-          });
-      printTrace('Forwarded host port $hostPort to device port $devicePort for $_serviceName');
-      hostUri = deviceUri.replace(port: hostPort);
-    } else {
-      hostUri = deviceUri;
-    }
-    return hostUri;
   }
 
-  void cancel() {
-    _subscription.cancel();
+  final DeviceLogReader logReader;
+  final String serviceName;
+  final DevicePortForwarder portForwarder;
+  final int hostPort;
+  final int defaultHostPort;
+  final bool ipv6;
+
+  final String _prefix;
+  final Completer<Uri> _completer = new Completer<Uri>();
+
+  StreamSubscription<String> _deviceLogSubscription;
+
+  /// The discovered service URI.
+  Future<Uri> get uri => _completer.future;
+
+  Future<Null> cancel() => _stopScrapingLogs();
+
+  Future<Null> _stopScrapingLogs() async {
+    await _deviceLogSubscription?.cancel();
+    _deviceLogSubscription = null;
   }
 
-  void _onLine(String line) {
+  void _handleLine(String line) {
     Uri uri;
-    final String prefix = '$_serviceName listening on ';
-    final int index = line.indexOf(prefix + 'http://');
+    final int index = line.indexOf(_prefix + 'http://');
     if (index >= 0) {
       try {
-        uri = Uri.parse(line.substring(index + prefix.length));
-      } catch (_) {
-        // Ignore errors.
+        uri = Uri.parse(line.substring(index + _prefix.length));
+      } catch (error) {
+        _stopScrapingLogs();
+        _completer.completeError(error);
       }
     }
-    if (uri != null)
-      _located(uri);
+
+    if (uri != null) {
+      assert(!_completer.isCompleted);
+      _stopScrapingLogs();
+      _completer.complete(_forwardPort(uri));
+    }
   }
 
-  void _located(Uri uri) {
-    assert(_completer != null);
-    assert(!_completer.isCompleted);
+  Future<Uri> _forwardPort(Uri deviceUri) async {
+    printTrace('$serviceName URL on device: $deviceUri');
+    Uri hostUri = deviceUri;
 
-    _completer.complete(uri);
-    _completer = new Completer<Uri>();
+    if (portForwarder != null) {
+      final int devicePort = deviceUri.port;
+      int hostPort = this.hostPort ?? await portScanner.findPreferredPort(defaultHostPort);
+      hostPort = await portForwarder.forward(devicePort, hostPort: hostPort);
+      printTrace('Forwarded host port $hostPort to device port $devicePort for $serviceName');
+      hostUri = deviceUri.replace(port: hostPort);
+    }
+
+    assert(new InternetAddress(hostUri.host).isLoopback);
+    if (ipv6) {
+      hostUri = hostUri.replace(host: InternetAddress.LOOPBACK_IP_V6.host);
+    }
+
+    return hostUri;
   }
 }

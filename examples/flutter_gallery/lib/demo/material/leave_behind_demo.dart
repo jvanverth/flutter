@@ -29,7 +29,7 @@ class LeaveBehindItem implements Comparable<LeaveBehindItem> {
 }
 
 class LeaveBehindDemo extends StatefulWidget {
-  LeaveBehindDemo({ Key key }) : super(key: key);
+  const LeaveBehindDemo({ Key key }) : super(key: key);
 
   static const String routeName = '/material/leave-behind';
 
@@ -60,20 +60,22 @@ class LeaveBehindDemoState extends State<LeaveBehindDemo> {
   }
 
   void handleDemoAction(LeaveBehindDemoAction action) {
-    switch(action) {
-      case LeaveBehindDemoAction.reset:
-        initListItems();
-        break;
-      case LeaveBehindDemoAction.horizontalSwipe:
-        _dismissDirection = DismissDirection.horizontal;
-        break;
-      case LeaveBehindDemoAction.leftSwipe:
-        _dismissDirection = DismissDirection.endToStart;
-        break;
-      case LeaveBehindDemoAction.rightSwipe:
-        _dismissDirection = DismissDirection.startToEnd;
-        break;
-    }
+    setState(() {
+      switch (action) {
+        case LeaveBehindDemoAction.reset:
+          initListItems();
+          break;
+        case LeaveBehindDemoAction.horizontalSwipe:
+          _dismissDirection = DismissDirection.horizontal;
+          break;
+        case LeaveBehindDemoAction.leftSwipe:
+          _dismissDirection = DismissDirection.endToStart;
+          break;
+        case LeaveBehindDemoAction.rightSwipe:
+          _dismissDirection = DismissDirection.startToEnd;
+          break;
+      }
+    });
   }
 
   void handleUndo(LeaveBehindItem item) {
@@ -103,19 +105,19 @@ class LeaveBehindDemoState extends State<LeaveBehindDemo> {
       },
       background: new Container(
         color: theme.primaryColor,
-        child: new ListTile(
+        child: const ListTile(
           leading: const Icon(Icons.delete, color: Colors.white, size: 36.0)
         )
       ),
       secondaryBackground: new Container(
         color: theme.primaryColor,
-        child: new ListTile(
+        child: const ListTile(
           trailing: const Icon(Icons.archive, color: Colors.white, size: 36.0)
         )
       ),
       child: new Container(
         decoration: new BoxDecoration(
-          backgroundColor: theme.canvasColor,
+          color: theme.canvasColor,
           border: new Border(bottom: new BorderSide(color: theme.dividerColor))
         ),
         child: new ListTile(
@@ -137,11 +139,11 @@ class LeaveBehindDemoState extends State<LeaveBehindDemo> {
           new PopupMenuButton<LeaveBehindDemoAction>(
             onSelected: handleDemoAction,
             itemBuilder: (BuildContext context) => <PopupMenuEntry<LeaveBehindDemoAction>>[
-              new PopupMenuItem<LeaveBehindDemoAction>(
+              const PopupMenuItem<LeaveBehindDemoAction>(
                 value: LeaveBehindDemoAction.reset,
                 child: const Text('Reset the list')
               ),
-              new PopupMenuDivider(), // ignore: list_element_type_not_assignable, https://github.com/flutter/flutter/issues/5771
+              const PopupMenuDivider(), // ignore: list_element_type_not_assignable, https://github.com/flutter/flutter/issues/5771
               new CheckedPopupMenuItem<LeaveBehindDemoAction>(
                 value: LeaveBehindDemoAction.horizontalSwipe,
                 checked: _dismissDirection == DismissDirection.horizontal,
@@ -161,9 +163,16 @@ class LeaveBehindDemoState extends State<LeaveBehindDemo> {
           )
         ]
       ),
-      body: new ListView(
-        children: leaveBehindItems.map(buildItem).toList()
-      )
+      body: leaveBehindItems.isEmpty
+          ? new Center(
+              child: new RaisedButton(
+                onPressed: () => handleDemoAction(LeaveBehindDemoAction.reset),
+                child: const Text('Reset the list'),
+              ),
+            )
+          : new ListView(
+             children: leaveBehindItems.map(buildItem).toList()
+            ),
     );
   }
 }

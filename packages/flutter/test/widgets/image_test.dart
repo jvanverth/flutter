@@ -8,11 +8,10 @@ import 'dart:ui' as ui show Image;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../services/image_data.dart';
+import '../painting/image_data.dart';
 
 void main() {
   testWidgets('Verify Image resets its RenderImage when changing providers', (WidgetTester tester) async {
@@ -26,7 +25,7 @@ void main() {
         )
       ),
       null,
-      EnginePhase.layout
+      EnginePhase.layout,
     );
     RenderImage renderImage = key.currentContext.findRenderObject();
     expect(renderImage.image, isNull);
@@ -196,7 +195,7 @@ void main() {
       )
     );
 
-    expect(imageProvider._configuration.devicePixelRatio, 5.0);
+    expect(imageProvider._lastResolvedConfiguration.devicePixelRatio, 5.0);
 
     // This is the same widget hierarchy as before except that the
     // two MediaQuery objects have exchanged places. The imageProvider
@@ -222,7 +221,7 @@ void main() {
       )
     );
 
-    expect(imageProvider._configuration.devicePixelRatio, 10.0);
+    expect(imageProvider._lastResolvedConfiguration.devicePixelRatio, 10.0);
   });
 
   testWidgets('Verify ImageProvider configuration inheritance again', (WidgetTester tester) async {
@@ -235,6 +234,7 @@ void main() {
     // of the Image changes and the MediaQuery widgets do not.
     await tester.pumpWidget(
       new Row(
+        textDirection: TextDirection.ltr,
         children: <Widget> [
           new MediaQuery(
             key: mediaQueryKey2,
@@ -259,10 +259,11 @@ void main() {
       )
     );
 
-    expect(imageProvider._configuration.devicePixelRatio, 5.0);
+    expect(imageProvider._lastResolvedConfiguration.devicePixelRatio, 5.0);
 
     await tester.pumpWidget(
       new Row(
+        textDirection: TextDirection.ltr,
         children: <Widget> [
           new MediaQuery(
             key: mediaQueryKey2,
@@ -287,29 +288,92 @@ void main() {
       )
     );
 
-    expect(imageProvider._configuration.devicePixelRatio, 10.0);
+    expect(imageProvider._lastResolvedConfiguration.devicePixelRatio, 10.0);
   });
 
   testWidgets('Verify Image stops listening to ImageStream', (WidgetTester tester) async {
     final TestImageProvider imageProvider = new TestImageProvider();
     await tester.pumpWidget(new Image(image: imageProvider));
     final State<Image> image = tester.state/*State<Image>*/(find.byType(Image));
-    expect(image.toString(), matches(new RegExp(r'_ImageState#[0-9]+\(stream: ImageStream\(OneFrameImageStreamCompleter; unresolved; 1 listener\); pixels: null\)')));
+    expect(image.toString(), equalsIgnoringHashCodes('_ImageState#00000(stream: ImageStream(OneFrameImageStreamCompleter, unresolved, 1 listener), pixels: null)'));
     imageProvider.complete();
     await tester.pump();
-    expect(image.toString(), matches(new RegExp(r'_ImageState#[0-9]+\(stream: ImageStream\(OneFrameImageStreamCompleter; \[100×100\] @ 1\.0x; 1 listener\); pixels: \[100×100\] @ 1\.0x\)')));
+    expect(image.toString(), equalsIgnoringHashCodes('_ImageState#00000(stream: ImageStream(OneFrameImageStreamCompleter, [100×100] @ 1.0x, 1 listener), pixels: [100×100] @ 1.0x)'));
     await tester.pumpWidget(new Container());
-    expect(image.toString(), matches(new RegExp(r'_ImageState#[0-9]+\(_StateLifecycle.defunct; not mounted; stream: ImageStream\(OneFrameImageStreamCompleter; \[100×100\] @ 1\.0x; 0 listeners\); pixels: \[100×100\] @ 1\.0x\)')));
+    expect(image.toString(), equalsIgnoringHashCodes('_ImageState#00000(lifecycle state: defunct, not mounted, stream: ImageStream(OneFrameImageStreamCompleter, [100×100] @ 1.0x, 0 listeners), pixels: [100×100] @ 1.0x)'));
   });
 
   testWidgets('Image.memory control test', (WidgetTester tester) async {
     await tester.pumpWidget(new Image.memory(new Uint8List.fromList(kTransparentImage)));
   });
+
+  testWidgets('Image color and colorBlend parameters', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      new Image(
+        image: new TestImageProvider(),
+        color: const Color(0xFF00FF00),
+        colorBlendMode: BlendMode.clear
+      )
+    );
+    final RenderImage renderer = tester.renderObject<RenderImage>(find.byType(Image));
+    expect(renderer.color, const Color(0xFF00FF00));
+    expect(renderer.colorBlendMode, BlendMode.clear);
+  });
+
+  testWidgets('Precache', (WidgetTester tester) async {
+    final TestImageProvider provider = new TestImageProvider();
+    Future<Null> precache;
+    await tester.pumpWidget(
+      new Builder(
+        builder: (BuildContext context) {
+          precache = precacheImage(provider, context);
+          return new Container();
+        }
+      )
+    );
+    provider.complete();
+    await precache;
+    expect(provider._lastResolvedConfiguration, isNotNull);
+
+    // Check that a second resolve of the same image is synchronous.
+    final ImageStream stream = provider.resolve(provider._lastResolvedConfiguration);
+    bool isSync;
+    stream.addListener((ImageInfo image, bool sync) { isSync = sync; });
+    expect(isSync, isTrue);
+  });
+
+  testWidgets('TickerMode controls stream registration', (WidgetTester tester) async {
+    final TestImageStreamCompleter imageStreamCompleter = new TestImageStreamCompleter();
+    final Image image = new Image(
+      image: new TestImageProvider(streamCompleter: imageStreamCompleter),
+    );
+    await tester.pumpWidget(
+      new TickerMode(
+        enabled: true,
+        child: image,
+      ),
+    );
+    expect(imageStreamCompleter.listeners.length, 1);
+    await tester.pumpWidget(
+      new TickerMode(
+        enabled: false,
+        child: image,
+      ),
+    );
+    expect(imageStreamCompleter.listeners.length, 0);
+  });
+
 }
 
 class TestImageProvider extends ImageProvider<TestImageProvider> {
   final Completer<ImageInfo> _completer = new Completer<ImageInfo>();
-  ImageConfiguration _configuration;
+  ImageStreamCompleter _streamCompleter;
+  ImageConfiguration _lastResolvedConfiguration;
+
+  TestImageProvider({ImageStreamCompleter streamCompleter}) {
+    _streamCompleter = streamCompleter
+      ?? new OneFrameImageStreamCompleter(_completer.future);
+  }
 
   @override
   Future<TestImageProvider> obtainKey(ImageConfiguration configuration) {
@@ -318,19 +382,33 @@ class TestImageProvider extends ImageProvider<TestImageProvider> {
 
   @override
   ImageStream resolve(ImageConfiguration configuration) {
-    _configuration = configuration;
+    _lastResolvedConfiguration = configuration;
     return super.resolve(configuration);
   }
 
   @override
-  ImageStreamCompleter load(TestImageProvider key) => new OneFrameImageStreamCompleter(_completer.future);
+  ImageStreamCompleter load(TestImageProvider key) => _streamCompleter;
 
   void complete() {
     _completer.complete(new ImageInfo(image: new TestImage()));
   }
 
   @override
-  String toString() => '$runtimeType#$hashCode()';
+  String toString() => '${describeIdentity(this)}()';
+}
+
+class TestImageStreamCompleter extends ImageStreamCompleter {
+  final List<ImageListener> listeners = <ImageListener> [];
+
+  @override 
+  void addListener(ImageListener listener) {
+    listeners.add(listener);
+  }
+
+  @override
+  void removeListener(ImageListener listener) {
+    listeners.remove(listener);
+  }
 }
 
 class TestImage extends ui.Image {

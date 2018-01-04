@@ -5,7 +5,7 @@
 import 'package:flutter/material.dart';
 
 class _ContactCategory extends StatelessWidget {
-  _ContactCategory({ Key key, this.icon, this.children }) : super(key: key);
+  const _ContactCategory({ Key key, this.icon, this.children }) : super(key: key);
 
   final IconData icon;
   final List<Widget> children;
@@ -20,26 +20,30 @@ class _ContactCategory extends StatelessWidget {
       ),
       child: new DefaultTextStyle(
         style: Theme.of(context).textTheme.subhead,
-        child: new Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            new Container(
-              padding: const EdgeInsets.symmetric(vertical: 24.0),
-              width: 72.0,
-              child: new Icon(icon, color: themeData.primaryColor)
-            ),
-            new Expanded(child: new Column(children: children))
-          ]
-        )
-      )
+        child: new SafeArea(
+          top: false,
+          bottom: false,
+          child: new Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              new Container(
+                padding: const EdgeInsets.symmetric(vertical: 24.0),
+                width: 72.0,
+                child: new Icon(icon, color: themeData.primaryColor)
+              ),
+              new Expanded(child: new Column(children: children))
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
 
 class _ContactItem extends StatelessWidget {
-  _ContactItem({ Key key, this.icon, this.lines, this.tooltip, this.onPressed }) : super(key: key) {
-    assert(lines.length > 1);
-  }
+  _ContactItem({ Key key, this.icon, this.lines, this.tooltip, this.onPressed })
+    : assert(lines.length > 1),
+      super(key: key);
 
   final IconData icon;
   final List<String> lines;
@@ -70,12 +74,14 @@ class _ContactItem extends StatelessWidget {
         )
       ));
     }
-    return new Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0),
-      child: new Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: rowChildren
-      )
+    return new MergeSemantics(
+      child: new Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16.0),
+        child: new Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: rowChildren
+        )
+      ),
     );
   }
 }
@@ -87,7 +93,7 @@ class ContactsDemo extends StatefulWidget {
   ContactsDemoState createState() => new ContactsDemoState();
 }
 
-enum AppBarBehavior { normal, pinned, floating }
+enum AppBarBehavior { normal, pinned, floating, snapping }
 
 class ContactsDemoState extends State<ContactsDemo> {
   static final GlobalKey<ScaffoldState> _scaffoldKey = new GlobalKey<ScaffoldState>();
@@ -110,13 +116,14 @@ class ContactsDemoState extends State<ContactsDemo> {
             new SliverAppBar(
               expandedHeight: _appBarHeight,
               pinned: _appBarBehavior == AppBarBehavior.pinned,
-              floating: _appBarBehavior == AppBarBehavior.floating,
+              floating: _appBarBehavior == AppBarBehavior.floating || _appBarBehavior == AppBarBehavior.snapping,
+              snap: _appBarBehavior == AppBarBehavior.snapping,
               actions: <Widget>[
                 new IconButton(
                   icon: const Icon(Icons.create),
                   tooltip: 'Edit',
                   onPressed: () {
-                    _scaffoldKey.currentState.showSnackBar(new SnackBar(
+                    _scaffoldKey.currentState.showSnackBar(const SnackBar(
                       content: const Text('This is actually just a demo. Editing isn\'t supported.')
                     ));
                   },
@@ -128,17 +135,21 @@ class ContactsDemoState extends State<ContactsDemo> {
                     });
                   },
                   itemBuilder: (BuildContext context) => <PopupMenuItem<AppBarBehavior>>[
-                    new PopupMenuItem<AppBarBehavior>(
+                    const PopupMenuItem<AppBarBehavior>(
                       value: AppBarBehavior.normal,
                       child: const Text('App bar scrolls away')
                     ),
-                    new PopupMenuItem<AppBarBehavior>(
+                    const PopupMenuItem<AppBarBehavior>(
                       value: AppBarBehavior.pinned,
                       child: const Text('App bar stays put')
                     ),
-                    new PopupMenuItem<AppBarBehavior>(
+                    const PopupMenuItem<AppBarBehavior>(
                       value: AppBarBehavior.floating,
                       child: const Text('App bar floats')
+                    ),
+                    const PopupMenuItem<AppBarBehavior>(
+                      value: AppBarBehavior.snapping,
+                      child: const Text('App bar snaps')
                     ),
                   ],
                 ),
@@ -146,9 +157,11 @@ class ContactsDemoState extends State<ContactsDemo> {
               flexibleSpace: new FlexibleSpaceBar(
                 title: const Text('Ali Connors'),
                 background: new Stack(
+                  fit: StackFit.expand,
                   children: <Widget>[
                     new Image.asset(
-                      'packages/flutter_gallery_assets/ali_connors.jpg',
+                      'ali_connors.jpg',
+                      package: 'flutter_gallery_assets',
                       fit: BoxFit.cover,
                       height: _appBarHeight,
                     ),
@@ -157,8 +170,8 @@ class ContactsDemoState extends State<ContactsDemo> {
                     const DecoratedBox(
                       decoration: const BoxDecoration(
                         gradient: const LinearGradient(
-                          begin: const FractionalOffset(0.5, 0.0),
-                          end: const FractionalOffset(0.5, 0.30),
+                          begin: const Alignment(0.0, -1.0),
+                          end: const Alignment(0.0, -0.4),
                           colors: const <Color>[const Color(0x60000000), const Color(0x00000000)],
                         ),
                       ),
@@ -176,7 +189,7 @@ class ContactsDemoState extends State<ContactsDemo> {
                       icon: Icons.message,
                       tooltip: 'Send message',
                       onPressed: () {
-                        _scaffoldKey.currentState.showSnackBar(new SnackBar(
+                        _scaffoldKey.currentState.showSnackBar(const SnackBar(
                           content: const Text('Pretend that this opened your SMS application.')
                         ));
                       },
@@ -189,7 +202,7 @@ class ContactsDemoState extends State<ContactsDemo> {
                       icon: Icons.message,
                       tooltip: 'Send message',
                       onPressed: () {
-                        _scaffoldKey.currentState.showSnackBar(new SnackBar(
+                        _scaffoldKey.currentState.showSnackBar(const SnackBar(
                           content: const Text('In this demo, this button doesn\'t do anything.')
                         ));
                       },
@@ -202,7 +215,7 @@ class ContactsDemoState extends State<ContactsDemo> {
                       icon: Icons.message,
                       tooltip: 'Send message',
                       onPressed: () {
-                        _scaffoldKey.currentState.showSnackBar(new SnackBar(
+                        _scaffoldKey.currentState.showSnackBar(const SnackBar(
                           content: const Text('Imagine if you will, a messaging application.')
                         ));
                       },
@@ -220,7 +233,7 @@ class ContactsDemoState extends State<ContactsDemo> {
                       icon: Icons.email,
                       tooltip: 'Send personal e-mail',
                       onPressed: () {
-                        _scaffoldKey.currentState.showSnackBar(new SnackBar(
+                        _scaffoldKey.currentState.showSnackBar(const SnackBar(
                           content: const Text('Here, your e-mail application would open.')
                         ));
                       },
@@ -233,7 +246,7 @@ class ContactsDemoState extends State<ContactsDemo> {
                       icon: Icons.email,
                       tooltip: 'Send work e-mail',
                       onPressed: () {
-                        _scaffoldKey.currentState.showSnackBar(new SnackBar(
+                        _scaffoldKey.currentState.showSnackBar(const SnackBar(
                           content: const Text('This is a demo, so this button does not actually work.')
                         ));
                       },
@@ -251,7 +264,7 @@ class ContactsDemoState extends State<ContactsDemo> {
                       icon: Icons.map,
                       tooltip: 'Open map',
                       onPressed: () {
-                        _scaffoldKey.currentState.showSnackBar(new SnackBar(
+                        _scaffoldKey.currentState.showSnackBar(const SnackBar(
                           content: const Text('This would show a map of San Francisco.')
                         ));
                       },
@@ -265,7 +278,7 @@ class ContactsDemoState extends State<ContactsDemo> {
                       icon: Icons.map,
                       tooltip: 'Open map',
                       onPressed: () {
-                        _scaffoldKey.currentState.showSnackBar(new SnackBar(
+                        _scaffoldKey.currentState.showSnackBar(const SnackBar(
                           content: const Text('This would show a map of Mountain View.')
                         ));
                       },
@@ -279,7 +292,7 @@ class ContactsDemoState extends State<ContactsDemo> {
                       icon: Icons.map,
                       tooltip: 'Open map',
                       onPressed: () {
-                        _scaffoldKey.currentState.showSnackBar(new SnackBar(
+                        _scaffoldKey.currentState.showSnackBar(const SnackBar(
                           content: const Text('This would also show a map, if this was not a demo.')
                         ));
                       },

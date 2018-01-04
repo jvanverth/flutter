@@ -23,6 +23,16 @@ import 'package:flutter/foundation.dart';
 /// method to reparent your [FocusNode] if your widget moves from one
 /// location in the tree to another.
 ///
+/// ## Lifetime
+///
+/// Focus nodes are long-lived objects. For example, if a stateful widget has a
+/// focusable child widget, it should create a [FocusNode] in the
+/// [State.initState] method, and [dispose] it in the [State.dispose] method,
+/// providing the same [FocusNode] to the focusable child each time the
+/// [State.build] method is run. In particular, creating a [FocusNode] each time
+/// [State.build] is invoked will cause the focus to be lost each time the
+/// widget is built.
+///
 /// See also:
 ///
 ///  * [FocusScopeNode], which is an interior node in the focus tree.
@@ -31,6 +41,7 @@ import 'package:flutter/foundation.dart';
 class FocusNode extends ChangeNotifier {
   FocusScopeNode _parent;
   FocusManager _manager;
+  bool _hasKeyboardToken = false;
 
   /// Whether this node has the overall focus.
   ///
@@ -47,6 +58,27 @@ class FocusNode extends ChangeNotifier {
   ///
   /// This object notifies its listeners whenever this value changes.
   bool get hasFocus => _manager?._currentFocus == this;
+
+  /// Removes the keyboard token from this focus node if it has one.
+  ///
+  /// This mechanism helps distinguish between an input control gaining focus by
+  /// default and gaining focus as a result of an explicit user action.
+  ///
+  /// When a focus node requests the focus (either via
+  /// [FocusScopeNode.requestFocus] or [FocusScopeNode.autofocus]), the focus
+  /// node receives a keyboard token if it does not already have one. Later,
+  /// when the focus node becomes focused, the widget that manages the
+  /// [TextInputConnection] should show the keyboard (i.e., call
+  /// [TextInputConnection.show]) only if it successfully consumes the keyboard
+  /// token from the focus node.
+  ///
+  /// Returns whether this function successfully consumes a keyboard token.
+  bool consumeKeyboardToken() {
+    if (!_hasKeyboardToken)
+      return false;
+    _hasKeyboardToken = false;
+    return true;
+  }
 
   /// Cancels any outstanding requests for focus.
   ///
@@ -72,7 +104,7 @@ class FocusNode extends ChangeNotifier {
   }
 
   @override
-  String toString() => '$runtimeType#$hashCode${hasFocus ? '(FOCUSED)' : ''}';
+  String toString() => '${describeIdentity(this)}${hasFocus ? '(FOCUSED)' : ''}';
 }
 
 /// An interior node in the focus tree.
@@ -97,7 +129,7 @@ class FocusNode extends ChangeNotifier {
 ///    [BuildContext].
 ///  * [FocusScope], which is a widget that associates a [FocusScopeNode] with
 ///    its location in the tree.
-class FocusScopeNode extends Object with TreeDiagnosticsMixin {
+class FocusScopeNode extends Object with DiagnosticableTreeMixin {
   FocusManager _manager;
   FocusScopeNode _parent;
 
@@ -126,7 +158,7 @@ class FocusScopeNode extends Object with TreeDiagnosticsMixin {
         node = node._parent;
       assert(node != child); // indicates we are about to create a cycle
       return true;
-    });
+    }());
     child._parent = this;
     child._nextSibling = _firstChild;
     if (_firstChild != null)
@@ -216,13 +248,9 @@ class FocusScopeNode extends Object with TreeDiagnosticsMixin {
     assert(node != null);
     if (_focus == node)
       return;
-    assert(node._parent == null);
     _focus?.unfocus();
-    assert(_focus == null);
-    _focus = node;
-    _focus._parent = this;
-    _focus._manager = _manager;
-    _didChangeFocusChain();
+    node._hasKeyboardToken = true;
+    _setFocus(node);
   }
 
   /// If this scope lacks a focus, request that the given node becomes the
@@ -235,8 +263,10 @@ class FocusScopeNode extends Object with TreeDiagnosticsMixin {
   /// microtask.
   void autofocus(FocusNode node) {
     assert(node != null);
-    if (_focus == null)
-      requestFocus(node);
+    if (_focus == null) {
+      node._hasKeyboardToken = true;
+      _setFocus(node);
+    }
   }
 
   /// Adopts the given node if it is focused in another scope.
@@ -250,7 +280,19 @@ class FocusScopeNode extends Object with TreeDiagnosticsMixin {
       return;
     node.unfocus();
     assert(node._parent == null);
-    autofocus(node);
+    if (_focus == null)
+      _setFocus(node);
+  }
+
+  void _setFocus(FocusNode node) {
+    assert(node != null);
+    assert(node._parent == null);
+    assert(_focus == null);
+    _focus = node;
+    _focus._parent = this;
+    _focus._manager = _manager;
+    _focus._hasKeyboardToken = true;
+    _didChangeFocusChain();
   }
 
   void _resignFocus(FocusNode node) {
@@ -312,29 +354,27 @@ class FocusScopeNode extends Object with TreeDiagnosticsMixin {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
+  void debugFillProperties(DiagnosticPropertiesBuilder description) {
+    super.debugFillProperties(description);
     if (_focus != null)
-      description.add('focus: $_focus');
+      description.add(new DiagnosticsProperty<FocusNode>('focus', _focus));
   }
 
   @override
-  String debugDescribeChildren(String prefix) {
-    final StringBuffer buffer = new StringBuffer();
+  List<DiagnosticsNode> debugDescribeChildren() {
+    final List<DiagnosticsNode> children = <DiagnosticsNode>[];
     if (_firstChild != null) {
       FocusScopeNode child = _firstChild;
       int count = 1;
-      while (child != _lastChild) {
-        buffer.write(child.toStringDeep("$prefix \u251C\u2500child $count: ", "$prefix \u2502"));
-        count += 1;
+      while (true) {
+        children.add(child.toDiagnosticsNode(name: 'child $count'));
+        if (child == _lastChild)
+          break;
         child = child._nextSibling;
-      }
-      if (child != null) {
-        assert(child == _lastChild);
-        buffer.write(child.toStringDeep("$prefix \u2514\u2500child $count: ", "$prefix  "));
+        count += 1;
       }
     }
-    return buffer.toString();
+    return children;
   }
 }
 
@@ -347,8 +387,8 @@ class FocusScopeNode extends Object with TreeDiagnosticsMixin {
 /// the root of the focus tree and tracking which [FocusNode] has the overall
 /// focus.
 ///
-/// The [FocusManager] is held by the [WidgetBinding] as
-/// [WidgetBinding.focusManager]. The [FocusManager] is rarely accessed
+/// The [FocusManager] is held by the [WidgetsBinding] as
+/// [WidgetsBinding.focusManager]. The [FocusManager] is rarely accessed
 /// directly. Instead, to find the [FocusScopeNode] for a given [BuildContext],
 /// use [FocusScope.of].
 ///
@@ -363,7 +403,7 @@ class FocusManager {
   /// Creates an object that manages the focus tree.
   ///
   /// This constructor is rarely called directly. To access the [FocusManager],
-  /// consider using [WidgetBinding.focusManager] instead.
+  /// consider using [WidgetsBinding.focusManager] instead.
   FocusManager() {
     rootScope._manager = this;
     assert(rootScope._firstChild == null);
@@ -414,8 +454,8 @@ class FocusManager {
   String toString() {
     final String status = _haveScheduledUpdate ? ' UPDATE SCHEDULED' : '';
     final String indent = '  ';
-    return '$runtimeType#$hashCode$status\n'
+    return '${describeIdentity(this)}$status\n'
       '${indent}currentFocus: $_currentFocus\n'
-      '${rootScope.toStringDeep(indent, indent)}';
+      '${rootScope.toStringDeep(prefixLineOne: indent, prefixOtherLines: indent)}';
   }
 }

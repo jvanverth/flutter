@@ -36,6 +36,19 @@ BuildApp() {
     target_path="${FLUTTER_TARGET}"
   fi
 
+  # Archive builds (ACTION=install) should always run in release mode.
+  if [[ "$ACTION" == "install" && "$FLUTTER_BUILD_MODE" != "release" ]]; then
+    EchoError "========================================================================"
+    EchoError "ERROR: Flutter archive builds must be run in Release mode."
+    EchoError ""
+    EchoError "To correct, run:"
+    EchoError "flutter build ios --release"
+    EchoError ""
+    EchoError "then re-run Archive from Xcode."
+    EchoError "========================================================================"
+    exit -1
+  fi
+
   local build_mode="release"
   if [[ -n "$FLUTTER_BUILD_MODE" ]]; then
     build_mode="${FLUTTER_BUILD_MODE}"
@@ -75,6 +88,11 @@ BuildApp() {
     local_engine_flag="--local-engine=$LOCAL_ENGINE"
   fi
 
+  local preview_dart_2_flag=""
+  if [[ -n "$PREVIEW_DART_2" ]]; then
+    preview_dart_2_flag="--preview-dart-2"
+  fi
+
   if [[ "$CURRENT_ARCH" != "x86_64" ]]; then
     local aot_flags=""
     if [[ "$build_mode" == "debug" ]]; then
@@ -88,7 +106,8 @@ BuildApp() {
       --target-platform=ios                                                 \
       --target="${target_path}"                                             \
       ${aot_flags}                                                          \
-      ${local_engine_flag}
+      ${local_engine_flag}                                                  \
+      ${preview_dart_2_flag}
 
     if [[ $? -ne 0 ]]; then
       EchoError "Failed to build ${project_path}."
@@ -117,9 +136,10 @@ BuildApp() {
     --output-file="${derived_dir}/app.flx"                                \
     --snapshot="${build_dir}/snapshot_blob.bin"                           \
     --depfile="${build_dir}/snapshot_blob.bin.d"                          \
-    --working-dir="${build_dir}/flx"                                      \
+    --working-dir="${derived_dir}/flutter_assets"                         \
     ${precompilation_flag}                                                \
     ${local_engine_flag}                                                  \
+    ${preview_dart_2_flag}                                                \
 
   if [[ $? -ne 0 ]]; then
     EchoError "Failed to package ${project_path}."

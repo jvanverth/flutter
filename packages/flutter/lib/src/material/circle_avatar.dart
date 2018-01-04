@@ -2,18 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'colors.dart';
 import 'constants.dart';
 import 'theme.dart';
-import 'typography.dart';
+import 'theme_data.dart';
+
+// Examples can assume:
+// String userAvatarUrl;
 
 /// A circle that represents a user.
 ///
 /// Typically used with a user's profile image, or, in the absence of
 /// such an image, the user's initials. A given user's initials should
 /// always be paired with the same background color, for consistency.
+///
+/// ## Sample code
 ///
 /// If the avatar is to have an image, the image should be specified in the
 /// [backgroundImage] property:
@@ -33,7 +38,7 @@ import 'typography.dart';
 /// new CircleAvatar(
 ///   backgroundColor: Colors.brown.shade800,
 ///   child: new Text('AH'),
-/// );
+/// )
 /// ```
 ///
 /// See also:
@@ -44,7 +49,7 @@ import 'typography.dart';
 ///  * <https://material.google.com/components/chips.html#chips-contact-chips>
 class CircleAvatar extends StatelessWidget {
   /// Creates a circle that represents a user.
-  CircleAvatar({
+  const CircleAvatar({
     Key key,
     this.child,
     this.backgroundColor,
@@ -85,25 +90,41 @@ class CircleAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    assert(debugCheckHasMediaQuery(context));
     final ThemeData theme = Theme.of(context);
-    final TextStyle textStyle = backgroundColor != null ?
-        new Typography(platform: theme.platform).white.title :
-        theme.primaryTextTheme.title;
+    TextStyle textStyle = theme.primaryTextTheme.title;
+    if (foregroundColor != null) {
+      textStyle = textStyle.copyWith(color: foregroundColor);
+    } else if (backgroundColor != null) {
+      switch (ThemeData.estimateBrightnessForColor(backgroundColor)) {
+        case Brightness.dark:
+          textStyle = textStyle.copyWith(color: Colors.white);
+          break;
+        case Brightness.light:
+          textStyle = textStyle.copyWith(color: Colors.black);
+          break;
+      }
+    }
     return new AnimatedContainer(
       width: radius * 2.0,
       height: radius * 2.0,
       duration: kThemeChangeDuration,
       decoration: new BoxDecoration(
-        backgroundColor: backgroundColor ?? theme.primaryColor,
-        backgroundImage: backgroundImage != null ? new BackgroundImage(
+        color: backgroundColor ?? theme.primaryColor,
+        image: backgroundImage != null ? new DecorationImage(
           image: backgroundImage
         ) : null,
         shape: BoxShape.circle,
       ),
       child: child != null ? new Center(
-        child: new DefaultTextStyle(
-          style: textStyle.copyWith(color: foregroundColor),
-          child: child,
+        child: new MediaQuery(
+          // Need to reset the textScaleFactor here so that the
+          // text doesn't escape the avatar when the textScaleFactor is large.
+          data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
+          child: new DefaultTextStyle(
+            style: textStyle.copyWith(color: foregroundColor),
+            child: child,
+          ),
         )
       ) : null,
     );

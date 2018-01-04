@@ -6,35 +6,33 @@ import 'dart:async';
 
 import 'package:meta/meta.dart';
 
-import 'application_package.dart';
 import 'base/file_system.dart';
-import 'base/utils.dart';
-import 'build_info.dart';
-import 'commands/trace.dart';
 import 'device.dart';
 import 'globals.dart';
 import 'resident_runner.dart';
+import 'tracing.dart';
 
 class ColdRunner extends ResidentRunner {
   ColdRunner(
-    Device device, {
+    List<FlutterDevice> devices, {
     String target,
     DebuggingOptions debuggingOptions,
     bool usesTerminalUI: true,
     this.traceStartup: false,
     this.applicationBinary,
+    this.previewDart2 : false,
     bool stayResident: true,
-  }) : super(device,
+    bool ipv6: false,
+  }) : super(devices,
              target: target,
              debuggingOptions: debuggingOptions,
              usesTerminalUI: usesTerminalUI,
-             stayResident: stayResident);
+             stayResident: stayResident,
+             ipv6: ipv6);
 
-  LaunchResult _result;
   final bool traceStartup;
   final String applicationBinary;
-
-  bool get prebuiltMode => applicationBinary != null;
+  final bool previewDart2;
 
   @override
   Future<int> run({
@@ -43,6 +41,7 @@ class ColdRunner extends ResidentRunner {
     String route,
     bool shouldBuild: true
   }) async {
+    final bool prebuiltMode = applicationBinary != null;
     if (!prebuiltMode) {
       if (!fs.isFileSync(mainPath)) {
         String message = 'Tried to run $mainPath, but that file does not exist.';
@@ -53,78 +52,49 @@ class ColdRunner extends ResidentRunner {
       }
     }
 
-    package = getApplicationPackageForPlatform(device.targetPlatform, applicationBinary: applicationBinary);
-
-    if (package == null) {
-      String message = 'No application found for ${device.targetPlatform}.';
-      final String hint = getMissingPackageHintForPlatform(device.targetPlatform);
-      if (hint != null)
-        message += '\n$hint';
-      printError(message);
-      return 1;
+    for (FlutterDevice device in flutterDevices) {
+      final int result = await device.runCold(
+        coldRunner: this,
+        route: route,
+        shouldBuild: shouldBuild,
+      );
+      if (result != 0)
+        return result;
     }
-
-    final Stopwatch startTime = new Stopwatch()..start();
-
-    Map<String, dynamic> platformArgs;
-    if (traceStartup != null)
-      platformArgs = <String, dynamic>{ 'trace-startup': traceStartup };
-
-    await startEchoingDeviceLog(package);
-
-    final String modeName = getModeName(debuggingOptions.buildMode);
-    if (mainPath == null) {
-      assert(prebuiltMode);
-      printStatus('Launching ${package.displayName} on ${device.name} in $modeName mode...');
-    } else {
-      printStatus('Launching ${getDisplayPath(mainPath)} on ${device.name} in $modeName mode...');
-    }
-
-    _result = await device.startApp(
-      package,
-      debuggingOptions.buildMode,
-      mainPath: mainPath,
-      debuggingOptions: debuggingOptions,
-      platformArgs: platformArgs,
-      route: route,
-      prebuiltApplication: prebuiltMode,
-      applicationNeedsRebuild: shouldBuild || hasDirtyDependencies()
-    );
-
-    if (!_result.started) {
-      printError('Error running application on ${device.name}.');
-      await stopEchoingDeviceLog();
-      return 2;
-    }
-
-    startTime.stop();
 
     // Connect to observatory.
     if (debuggingOptions.debuggingEnabled)
-      await connectToServiceProtocol(_result.observatoryUri);
+      await connectToServiceProtocol();
 
-    if (_result.hasObservatory) {
+    if (flutterDevices.first.observatoryUris != null) {
+      // For now, only support one debugger connection.
       connectionInfoCompleter?.complete(new DebugConnectionInfo(
-        httpUri: _result.observatoryUri,
-        wsUri: vmService.wsAddress,
+        httpUri: flutterDevices.first.observatoryUris.first,
+        wsUri: flutterDevices.first.vmServices.first.wsAddress,
       ));
     }
 
     printTrace('Application running.');
 
-    if (vmService != null) {
-      device.getLogReader(app: package).appPid = vmService.vm.pid;
-      await vmService.vm.refreshViews();
-      printTrace('Connected to ${vmService.vm.firstView}\.');
+    for (FlutterDevice device in flutterDevices) {
+      if (device.vmServices == null)
+        continue;
+      device.initLogReader();
+      await device.refreshViews();
+      printTrace('Connected to ${device.device.name}');
     }
 
-    if (vmService != null && traceStartup) {
-      printStatus('Downloading startup trace info...');
-      try {
-        await downloadStartupTrace(vmService);
-      } catch(error) {
-        printError(error);
-        return 2;
+    if (traceStartup) {
+      // Only trace startup for the first device.
+      final FlutterDevice device = flutterDevices.first;
+      if (device.vmServices != null && device.vmServices.isNotEmpty) {
+        printStatus('Downloading startup trace info for ${device.device.name}');
+        try {
+          await downloadStartupTrace(device.vmServices.first);
+        } catch (error) {
+          printError('Error downloading startup trace: $error');
+          return 2;
+        }
       }
       appFinished();
     } else if (stayResident) {
@@ -157,8 +127,13 @@ class ColdRunner extends ResidentRunner {
   @override
   void printHelp({ @required bool details }) {
     bool haveDetails = false;
-    if (_result.hasObservatory)
-      printStatus('The Observatory debugger and profiler is available at: ${_result.observatoryUri}');
+    for (FlutterDevice device in flutterDevices) {
+      final String dname = device.device.name;
+      if (device.observatoryUris != null) {
+        for (Uri uri in device.observatoryUris)
+          printStatus('An Observatory debugger and profiler on $dname is available at $uri');
+      }
+    }
     if (supportsServiceProtocol) {
       haveDetails = true;
       if (details)
@@ -173,8 +148,10 @@ class ColdRunner extends ResidentRunner {
 
   @override
   Future<Null> preStop() async {
-    // If we're running in release mode, stop the app using the device logic.
-    if (vmService == null)
-      await device.stopApp(package);
+    for (FlutterDevice device in flutterDevices) {
+      // If we're running in release mode, stop the app using the device logic.
+      if (device.vmServices == null || device.vmServices.isEmpty)
+        await device.device.stopApp(device.package);
+    }
   }
 }

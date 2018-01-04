@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
@@ -36,13 +37,15 @@ typedef Future<Null> WidgetTesterCallback(WidgetTester widgetTester);
 /// provides convenient widget [Finder]s for use with the
 /// [WidgetTester].
 ///
-/// Example:
+/// ## Sample code
 ///
+/// ```dart
 ///     testWidgets('MyWidget', (WidgetTester tester) async {
 ///       await tester.pumpWidget(new MyWidget());
 ///       await tester.tap(find.text('Save'));
-///       expect(tester, hasWidget(find.text('Success')));
+///       expect(find.text('Success'), findsOneWidget);
 ///     });
+/// ```
 void testWidgets(String description, WidgetTesterCallback callback, {
   bool skip: false,
   test_package.Timeout timeout
@@ -115,7 +118,7 @@ Future<Null> benchmarkWidgets(WidgetTesterCallback callback) {
     print('│                                                        ');
     print('└─────────────────────────────────────────────────╌┄┈  🐢');
     return true;
-  });
+  }());
   final TestWidgetsFlutterBinding binding = TestWidgetsFlutterBinding.ensureInitialized();
   assert(binding is! AutomatedTestWidgetsFlutterBinding);
   final WidgetTester tester = new WidgetTester._(binding);
@@ -132,9 +135,10 @@ Future<Null> benchmarkWidgets(WidgetTesterCallback callback) {
 /// that have not yet resolved.
 void expect(dynamic actual, dynamic matcher, {
   String reason,
+  dynamic skip, // true or a String
 }) {
   TestAsyncUtils.guardSync();
-  test_package.expect(actual, matcher, reason: reason);
+  test_package.expect(actual, matcher, reason: reason, skip: skip);
 }
 
 /// Assert that `actual` matches `matcher`.
@@ -181,7 +185,7 @@ class WidgetTester extends WidgetController implements HitTestDispatcher, Ticker
   /// this method works when the test is run with `flutter run`.
   Future<Null> pumpWidget(Widget widget, [
     Duration duration,
-    EnginePhase phase = EnginePhase.sendSemanticsTree
+    EnginePhase phase = EnginePhase.sendSemanticsUpdate,
   ]) {
     return TestAsyncUtils.guard(() {
       binding.attachRootWidget(widget);
@@ -204,16 +208,15 @@ class WidgetTester extends WidgetController implements HitTestDispatcher, Ticker
   @override
   Future<Null> pump([
     Duration duration,
-    EnginePhase phase = EnginePhase.sendSemanticsTree
+    EnginePhase phase = EnginePhase.sendSemanticsUpdate,
   ]) {
     return TestAsyncUtils.guard(() => binding.pump(duration, phase));
   }
 
   /// Repeatedly calls [pump] with the given `duration` until there are no
-  /// longer any transient callbacks scheduled. This will call [pump] at least
-  /// once, even if no transient callbacks are scheduled when the function is
-  /// called, in case there are dirty widgets to rebuild which will themselves
-  /// register new transient callbacks.
+  /// longer any frames scheduled. This will call [pump] at least once, even if
+  /// no frames are scheduled when the function is called, to flush any pending
+  /// microtasks which may themselves schedule a frame.
   ///
   /// This essentially waits for all animations to have completed.
   ///
@@ -236,13 +239,24 @@ class WidgetTester extends WidgetController implements HitTestDispatcher, Ticker
   /// matches the expected number of pumps.
   Future<int> pumpAndSettle([
       Duration duration = const Duration(milliseconds: 100),
-      EnginePhase phase = EnginePhase.sendSemanticsTree,
+      EnginePhase phase = EnginePhase.sendSemanticsUpdate,
       Duration timeout = const Duration(minutes: 10),
     ]) {
     assert(duration != null);
     assert(duration > Duration.ZERO);
     assert(timeout != null);
     assert(timeout > Duration.ZERO);
+    assert(() {
+      final WidgetsBinding binding = this.binding;
+      if (binding is LiveTestWidgetsFlutterBinding &&
+          binding.framePolicy == LiveTestWidgetsFlutterBindingFramePolicy.benchmark) {
+        throw 'When using LiveTestWidgetsFlutterBindingFramePolicy.benchmark, '
+              'hasScheduledFrame is never set to true. This means that pumpAndSettle() '
+              'cannot be used, because it has no way to know if the application has '
+              'stopped registering new frames.';
+      }
+      return true;
+    }());
     int count = 0;
     return TestAsyncUtils.guard(() async {
       final DateTime endTime = binding.clock.fromNowBy(timeout);
@@ -251,13 +265,26 @@ class WidgetTester extends WidgetController implements HitTestDispatcher, Ticker
           throw new FlutterError('pumpAndSettle timed out');
         await binding.pump(duration, phase);
         count += 1;
-      } while (hasRunningAnimations);
+      } while (binding.hasScheduledFrame);
     }).then<int>((Null _) => count);
   }
 
-  /// Whether ther are any any transient callbacks scheduled.
+  /// Whether there are any any transient callbacks scheduled.
   ///
   /// This essentially checks whether all animations have completed.
+  ///
+  /// See also:
+  ///
+  ///  * [pumpAndSettle], which essentially calls [pump] until there are no
+  ///    scheduled frames.
+  ///
+  ///  * [SchedulerBinding.transientCallbackCount], which is the value on which
+  ///    this is based.
+  ///
+  ///  * [SchedulerBinding.hasScheduledFrame], which is true whenever a frame is
+  ///    pending. [SchedulerBinding.hasScheduledFrame] is made true when a
+  ///    widget calls [State.setState], even if there are no transient callbacks
+  ///    scheduled. This is what [pumpAndSettle] uses.
   bool get hasRunningAnimations => binding.transientCallbackCount > 0;
 
   @override
@@ -280,12 +307,18 @@ class WidgetTester extends WidgetController implements HitTestDispatcher, Ticker
     if (event is PointerDownEvent) {
       final RenderObject innerTarget = result.path.firstWhere(
         (HitTestEntry candidate) => candidate.target is RenderObject,
-        orElse: () => null
-      )?.target;
-      if (innerTarget == null)
-        return null;
-      final Element innerTargetElement = collectAllElementsFrom(binding.renderViewElement, skipOffstage: true)
-        .lastWhere((Element element) => element.renderObject == innerTarget);
+      ).target;
+      final Element innerTargetElement = collectAllElementsFrom(
+        binding.renderViewElement,
+        skipOffstage: true,
+      ).lastWhere(
+        (Element element) => element.renderObject == innerTarget,
+        orElse: () => null,
+      );
+      if (innerTargetElement == null) {
+        debugPrint('No widgets found at ${binding.globalToLocal(event.position)}.');
+        return;
+      }
       final List<Element> candidates = <Element>[];
       innerTargetElement.visitAncestorElements((Element element) {
         candidates.add(element);
@@ -298,9 +331,18 @@ class WidgetTester extends WidgetController implements HitTestDispatcher, Ticker
       int totalNumber = 0;
       debugPrint('Some possible finders for the widgets at ${binding.globalToLocal(event.position)}:');
       for (Element element in candidates) {
-        if (totalNumber > 10)
+        if (totalNumber > 13) // an arbitrary number of finders that feels useful without being overwhelming
           break;
-        totalNumber += 1;
+        totalNumber += 1; // optimistically assume we'll be able to describe it
+
+        if (element.widget is Tooltip) {
+          final Tooltip widget = element.widget;
+          final Iterable<Element> matches = find.byTooltip(widget.message).evaluate();
+          if (matches.length == 1) {
+            debugPrint('  find.byTooltip(\'${widget.message}\')');
+            continue;
+          }
+        }
 
         if (element.widget is Text) {
           assert(descendantText == null);
@@ -321,7 +363,7 @@ class WidgetTester extends WidgetController implements HitTestDispatcher, Ticker
                key is ValueKey<bool>)) {
             keyLabel = 'const ${element.widget.key.runtimeType}(${key.value})';
           } else if (key is ValueKey<String>) {
-            keyLabel = 'const ${element.widget.key.runtimeType}(\'${key.value}\')';
+            keyLabel = 'const Key(\'${key.value}\')';
           }
           if (keyLabel != null) {
             final Iterable<Element> matches = find.byKey(key).evaluate();
@@ -436,19 +478,25 @@ class WidgetTester extends WidgetController implements HitTestDispatcher, Ticker
   /// Returns the TestTextInput singleton.
   ///
   /// Typical app tests will not need to use this value. To add text to widgets
-  /// like [Input] or [TextField], call [enterText].
+  /// like [TextField] or [TextFormField], call [enterText].
   TestTextInput get testTextInput => binding.testTextInput;
 
-  /// Give the EditableText widget specified by [finder] the focus, as if the
+  /// Give the text input widget specified by [finder] the focus, as if the
   /// onscreen keyboard had appeared.
   ///
-  /// Tests that just need to add text to widgets like [Input] or [TextField]
-  /// only need to call [enterText].
+  /// The widget specified by [finder] must be an [EditableText] or have
+  /// an [EditableText] descendant. For example `find.byType(TextField)`
+  /// or `find.byType(TextFormField)`, or `find.byType(EditableText)`.
+  ///
+  /// Tests that just need to add text to widgets like [TextField]
+  /// or [TextFormField] only need to call [enterText].
   Future<Null> showKeyboard(Finder finder) async {
     return TestAsyncUtils.guard(() async {
-      // TODO(hansmuller): Once find.descendant (#7789) lands replace the following
-      // RHS with state(find.descendant(finder), find.byType(EditableText)).
-      final EditableTextState editable = state(finder);
+      final EditableTextState editable = state(find.descendant(
+        of: finder,
+        matching: find.byType(EditableText),
+        matchRoot: true,
+      ));
       if (editable != binding.focusedEditable) {
         binding.focusedEditable = editable;
         await pump();
@@ -456,8 +504,15 @@ class WidgetTester extends WidgetController implements HitTestDispatcher, Ticker
     });
   }
 
-  /// Give the EditableText widget specified by [finder] the focus and
+  /// Give the text input widget specified by [finder] the focus and
   /// enter [text] as if it been provided by the onscreen keyboard.
+  ///
+  /// The widget specified by [finder] must be an [EditableText] or have
+  /// an [EditableText] descendant. For example `find.byType(TextField)`
+  /// or `find.byType(TextFormField)`, or `find.byType(EditableText)`.
+  ///
+  /// To just give [finder] the focus without entering any text,
+  /// see [showKeyboard].
   Future<Null> enterText(Finder finder, String text) async {
     return TestAsyncUtils.guard(() async {
       await showKeyboard(finder);

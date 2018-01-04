@@ -28,38 +28,38 @@ class FooState extends State<Foo> {
                   scrollController.animateTo(200.0, duration: const Duration(milliseconds: 500), curve: Curves.linear);
                 },
                 child: const DecoratedBox(
-                  decoration: const BoxDecoration(backgroundColor: const Color(0)),
+                  decoration: const BoxDecoration(color: const Color(0)),
                   child: const SizedBox(
                     height: 200.0,
                   ),
                 )
               ),
               const DecoratedBox(
-                decoration: const BoxDecoration(backgroundColor: const Color(0)),
+                decoration: const BoxDecoration(color: const Color(0)),
                 child: const SizedBox(
                   height: 200.0,
                 ),
               ),
               const DecoratedBox(
-                decoration: const BoxDecoration(backgroundColor: const Color(0)),
+                decoration: const BoxDecoration(color: const Color(0)),
                 child: const SizedBox(
                   height: 200.0,
                 ),
               ),
               const DecoratedBox(
-                decoration: const BoxDecoration(backgroundColor: const Color(0)),
+                decoration: const BoxDecoration(color: const Color(0)),
                 child: const SizedBox(
                   height: 200.0,
                 ),
               ),
               const DecoratedBox(
-                decoration: const BoxDecoration(backgroundColor: const Color(0)),
+                decoration: const BoxDecoration(color: const Color(0)),
                 child: const SizedBox(
                   height: 200.0,
                 ),
               ),
               const DecoratedBox(
-                decoration: const BoxDecoration(backgroundColor: const Color(0)),
+                decoration: const BoxDecoration(color: const Color(0)),
                 child: const SizedBox(
                   height: 200.0,
                 ),
@@ -79,7 +79,12 @@ class FooScrollBehavior extends ScrollBehavior {
 
 void main() {
   testWidgets('Can animate scroll after setState', (WidgetTester tester) async {
-    await tester.pumpWidget(new Foo());
+    await tester.pumpWidget(
+      new Directionality(
+        textDirection: TextDirection.ltr,
+        child: new Foo(),
+      ),
+    );
     expect(tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels, 0.0);
     await tester.tap(find.byType(GestureDetector).first);
     await tester.pumpAndSettle();

@@ -5,18 +5,16 @@
 import 'package:flutter/foundation.dart';
 
 import 'basic.dart';
-import 'binding.dart';
 import 'focus_manager.dart';
 import 'framework.dart';
 
 class _FocusScopeMarker extends InheritedWidget {
-  _FocusScopeMarker({
+  const _FocusScopeMarker({
     Key key,
     @required this.node,
     Widget child,
-  }) : super(key: key, child: child) {
-    assert(node != null);
-  }
+  }) : assert(node != null),
+       super(key: key, child: child);
 
   final FocusScopeNode node;
 
@@ -53,15 +51,14 @@ class FocusScope extends StatefulWidget {
   /// Creates a scope in which widgets can receive focus.
   ///
   /// The [node] argument must not be null.
-  FocusScope({
+  const FocusScope({
     Key key,
     @required this.node,
     this.autofocus: false,
     this.child,
-  }) : super(key: key) {
-    assert(node != null);
-    assert(autofocus != null);
-  }
+  }) : assert(node != null),
+       assert(autofocus != null),
+       super(key: key);
 
   /// Controls whether this scope is currently active.
   final FocusScopeNode node;
@@ -71,13 +68,15 @@ class FocusScope extends StatefulWidget {
   final bool autofocus;
 
   /// The widget below this widget in the tree.
+  ///
+  /// {@macro flutter.widgets.child}
   final Widget child;
 
   /// Returns the [node] of the [FocusScope] that most tightly encloses the
   /// given [BuildContext].
   static FocusScopeNode of(BuildContext context) {
     final _FocusScopeMarker scope = context.inheritFromWidgetOfExactType(_FocusScopeMarker);
-    return scope?.node ?? WidgetsBinding.instance.focusManager.rootScope;
+    return scope?.node ?? context.owner.focusManager.rootScope;
   }
 
   @override
@@ -106,7 +105,7 @@ class _FocusScopeState extends State<FocusScope> {
   Widget build(BuildContext context) {
     FocusScope.of(context).reparentScopeIfNeeded(widget.node);
     return new Semantics(
-      container: true,
+      explicitChildNodes: true,
       child: new _FocusScopeMarker(
         node: widget.node,
         child: widget.child,

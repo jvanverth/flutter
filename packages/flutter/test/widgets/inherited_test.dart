@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'test_widgets.dart';
 
 class TestInherited extends InheritedWidget {
-  TestInherited({ Key key, Widget child, this.shouldNotify: true })
+  const TestInherited({ Key key, Widget child, this.shouldNotify: true })
     : super(key: key, child: child);
 
   final bool shouldNotify;
@@ -20,7 +20,7 @@ class TestInherited extends InheritedWidget {
 }
 
 class ValueInherited extends InheritedWidget {
-  ValueInherited({ Key key, Widget child, this.value })
+  const ValueInherited({ Key key, Widget child, this.value })
     : super(key: key, child: child);
 
   final int value;
@@ -30,7 +30,7 @@ class ValueInherited extends InheritedWidget {
 }
 
 class ExpectFail extends StatefulWidget {
-  ExpectFail(this.onError);
+  const ExpectFail(this.onError);
   final VoidCallback onError;
 
   @override
@@ -129,7 +129,7 @@ void main() {
                           builder: (BuildContext context) {
                             final ValueInherited v = context.inheritFromWidgetOfExactType(ValueInherited);
                             log.add('a: ${v.value}');
-                            return const Text('');
+                            return const Text('', textDirection: TextDirection.ltr);
                           }
                         )
                       )
@@ -146,7 +146,7 @@ void main() {
                         builder: (BuildContext context) {
                           final ValueInherited v = context.inheritFromWidgetOfExactType(ValueInherited);
                           log.add('b: ${v.value}');
-                          return const Text('');
+                          return const Text('', textDirection: TextDirection.ltr);
                         }
                       )
                     )
@@ -204,7 +204,7 @@ void main() {
                           builder: (BuildContext context) {
                             final ValueInherited v = context.inheritFromWidgetOfExactType(ValueInherited);
                             log.add('a: ${v.value}');
-                            return const Text('');
+                            return const Text('', textDirection: TextDirection.ltr);
                           }
                         )
                       )
@@ -222,7 +222,7 @@ void main() {
                         builder: (BuildContext context) {
                           final ValueInherited v = context.inheritFromWidgetOfExactType(ValueInherited);
                           log.add('b: ${v.value}');
-                          return const Text('');
+                          return const Text('', textDirection: TextDirection.ltr);
                         }
                       )
                     )
@@ -265,7 +265,7 @@ void main() {
       builder: (BuildContext context) {
         final ValueInherited v = context.inheritFromWidgetOfExactType(ValueInherited);
         log.add(v.value);
-        return const Text('');
+        return const Text('', textDirection: TextDirection.ltr);
       }
     );
 
@@ -336,7 +336,7 @@ void main() {
       builder: (BuildContext context) {
         final ValueInherited v = context.inheritFromWidgetOfExactType(ValueInherited);
         log.add(v.value);
-        return const Text('');
+        return const Text('', textDirection: TextDirection.ltr);
       }
     );
 

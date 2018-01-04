@@ -9,9 +9,11 @@ import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:flutter_tools/src/asset.dart';
 import 'package:flutter_tools/src/base/io.dart';
+import 'package:flutter_tools/src/base/file_system.dart';
 import 'package:flutter_tools/src/build_info.dart';
 import 'package:flutter_tools/src/devfs.dart';
 import 'package:flutter_tools/src/vmservice.dart';
+import 'package:json_rpc_2/json_rpc_2.dart' as rpc;
 import 'package:test/test.dart';
 
 import 'src/common.dart';
@@ -121,6 +123,21 @@ void main() {
       FileSystem: () => fs,
     });
 
+    testUsingContext('add new file to local file system and preserve unusal file name casing', () async {
+      final String filePathWithUnusalCasing = fs.path.join('FooBar', 'TEST.txt');
+      final File file = fs.file(fs.path.join(basePath, filePathWithUnusalCasing));
+      await file.parent.create(recursive: true);
+      file.writeAsBytesSync(<int>[1, 2, 3, 4, 5, 6, 7]);
+      final int bytes = await devFS.update();
+      devFSOperations.expectMessages(<String>[
+        'writeFile test FooBar/TEST.txt',
+      ]);
+      expect(devFS.assetPathsToEvict, isEmpty);
+      expect(bytes, 7);
+    }, overrides: <Type, Generator>{
+      FileSystem: () => fs,
+    });
+
     testUsingContext('modify existing file on local file system', () async {
       await devFS.update();
       final File file = fs.file(fs.path.join(basePath, filePath));
@@ -181,10 +198,9 @@ void main() {
         fileFilter.addAll(fs.directory(pkgUri)
             .listSync(recursive: true)
             .where((FileSystemEntity file) => file is File)
-            .map((FileSystemEntity file) => fs.path.canonicalize(file.path))
+            .map((FileSystemEntity file) => canonicalizePath(file.path))
             .toList());
       }
-
       final int bytes = await devFS.update(fileFilter: fileFilter);
       devFSOperations.expectMessages(<String>[
         'writeFile test .packages',
@@ -320,7 +336,34 @@ void main() {
     testUsingContext('delete dev file system', () async {
       expect(vmService.messages, isEmpty, reason: 'prior test timeout');
       await devFS.destroy();
-      vmService.expectMessages(<String>['_deleteDevFS {fsName: test}']);
+      vmService.expectMessages(<String>['destroy test']);
+      expect(devFS.assetPathsToEvict, isEmpty);
+    }, overrides: <Type, Generator>{
+      FileSystem: () => fs,
+    });
+
+    testUsingContext('cleanup preexisting file system', () async {
+      // simulate workspace
+      final File file = fs.file(fs.path.join(basePath, filePath));
+      await file.parent.create(recursive: true);
+      file.writeAsBytesSync(<int>[1, 2, 3]);
+
+      // simulate package
+      await _createPackage(fs, 'somepkg', 'somefile.txt');
+
+      devFS = new DevFS(vmService, 'test', tempDir);
+      await devFS.create();
+      vmService.expectMessages(<String>['create test']);
+      expect(devFS.assetPathsToEvict, isEmpty);
+
+      // Try to create again.
+      await devFS.create();
+      vmService.expectMessages(<String>['create test', 'destroy test', 'create test']);
+      expect(devFS.assetPathsToEvict, isEmpty);
+
+      // Really destroy.
+      await devFS.destroy();
+      vmService.expectMessages(<String>['destroy test']);
       expect(devFS.assetPathsToEvict, isEmpty);
     }, overrides: <Type, Generator>{
       FileSystem: () => fs,
@@ -344,8 +387,14 @@ class MockVMService extends BasicMock implements VMService {
   VM get vm => _vm;
 
   Future<Null> setUp() async {
-    _server = await HttpServer.bind(InternetAddress.LOOPBACK_IP_V4, 0);
-    _httpAddress = Uri.parse('http://127.0.0.1:${_server.port}');
+    try {
+      _server = await HttpServer.bind(InternetAddress.LOOPBACK_IP_V6, 0);
+      _httpAddress = Uri.parse('http://[::1]:${_server.port}');
+    } on SocketException {
+      // Fall back to IPv4 if the host doesn't support binding to IPv6 localhost
+      _server = await HttpServer.bind(InternetAddress.LOOPBACK_IP_V4, 0);
+      _httpAddress = Uri.parse('http://127.0.0.1:${_server.port}');
+    }
     _server.listen((HttpRequest request) {
       final String fsName = request.headers.value('dev_fs_name');
       final String devicePath = UTF8.decode(BASE64.decode(request.headers.value('dev_fs_uri_b64')));
@@ -359,7 +408,7 @@ class MockVMService extends BasicMock implements VMService {
   }
 
   Future<Null> tearDown() async {
-    await _server.close();
+    await _server?.close();
   }
 
   @override
@@ -369,13 +418,27 @@ class MockVMService extends BasicMock implements VMService {
 class MockVM implements VM {
   final MockVMService _service;
   final Uri _baseUri = Uri.parse('file:///tmp/devfs/test');
+  bool _devFSExists = false;
+
+  static const int kFileSystemAlreadyExists = 1001;
 
   MockVM(this._service);
 
   @override
   Future<Map<String, dynamic>> createDevFS(String fsName) async {
     _service.messages.add('create $fsName');
+    if (_devFSExists) {
+      throw new rpc.RpcException(kFileSystemAlreadyExists, 'File system already exists');
+    }
+    _devFSExists = true;
     return <String, dynamic>{'uri': '$_baseUri'};
+  }
+
+  @override
+  Future<Map<String, dynamic>> deleteDevFS(String fsName) async {
+    _service.messages.add('destroy $fsName');
+    _devFSExists = false;
+    return <String, dynamic>{'type': 'Success'};
   }
 
   @override

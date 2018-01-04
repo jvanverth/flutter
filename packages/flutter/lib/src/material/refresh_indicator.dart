@@ -73,27 +73,33 @@ enum _RefreshIndicatorMode {
 /// See also:
 ///
 ///  * <https://material.google.com/patterns/swipe-to-refresh.html>
-///  * [RefreshIndicatorState], can be used to programatically show the refresh indicator.
+///  * [RefreshIndicatorState], can be used to programmatically show the refresh indicator.
 ///  * [RefreshProgressIndicator].
 class RefreshIndicator extends StatefulWidget {
   /// Creates a refresh indicator.
   ///
-  /// The [onRefresh] and [child] arguments must be non-null. The default
+  /// The [onRefresh], [child], and [notificationPredicate] arguments must be
+  /// non-null. The default
   /// [displacement] is 40.0 logical pixels.
-  RefreshIndicator({
+  const RefreshIndicator({
     Key key,
     @required this.child,
     this.displacement: 40.0,
     @required this.onRefresh,
     this.color,
-    this.backgroundColor
-  }) : super(key: key) {
-    assert(child != null);
-    assert(onRefresh != null);
-  }
+    this.backgroundColor,
+    this.notificationPredicate: defaultScrollNotificationPredicate,
+  }) : assert(child != null),
+       assert(onRefresh != null),
+       assert(notificationPredicate != null),
+       super(key: key);
 
+  /// The widget below this widget in the tree.
+  ///
   /// The refresh indicator will be stacked on top of this child. The indicator
   /// will appear when child's Scrollable descendant is over-scrolled.
+  ///
+  /// Typically a [ListView] or [CustomScrollView].
   final Widget child;
 
   /// The distance from the child's top or bottom edge to where the refresh
@@ -113,6 +119,13 @@ class RefreshIndicator extends StatefulWidget {
   /// The progress indicator's background color. The current theme's
   /// [ThemeData.canvasColor] by default.
   final Color backgroundColor;
+  
+  /// A check that specifies whether a [ScrollNotification] should be
+  /// handled by this widget.
+  ///
+  /// By default, checks whether `notification.depth == 0`. Set it to something
+  /// else for more complicated layouts.
+  final ScrollNotificationPredicate notificationPredicate;
 
   @override
   RefreshIndicatorState createState() => new RefreshIndicatorState();
@@ -175,17 +188,17 @@ class RefreshIndicatorState extends State<RefreshIndicator> with TickerProviderS
   }
 
   bool _handleScrollNotification(ScrollNotification notification) {
-    if (notification.depth != 0)
+    if (!widget.notificationPredicate(notification))
       return false;
     if (notification is ScrollStartNotification && notification.metrics.extentBefore == 0.0 &&
-        _mode == null && _start(notification.axisDirection)) {
+        _mode == null && _start(notification.metrics.axisDirection)) {
       setState(() {
         _mode = _RefreshIndicatorMode.drag;
       });
       return false;
     }
     bool indicatorAtTopNow;
-    switch (notification.axisDirection) {
+    switch (notification.metrics.axisDirection) {
       case AxisDirection.down:
         indicatorAtTopNow = true;
         break;
@@ -309,7 +322,7 @@ class RefreshIndicatorState extends State<RefreshIndicator> with TickerProviderS
     _mode = _RefreshIndicatorMode.snap;
     _positionController
       .animateTo(1.0 / _kDragSizeFactorLimit, duration: _kIndicatorSnapDuration)
-      .whenComplete(() {
+      .then<Null>((Null value) {
         if (mounted && _mode == _RefreshIndicatorMode.snap) {
           assert(widget.onRefresh != null);
           setState(() {
@@ -317,7 +330,22 @@ class RefreshIndicatorState extends State<RefreshIndicator> with TickerProviderS
             _mode = _RefreshIndicatorMode.refresh;
           });
 
-          widget.onRefresh().whenComplete(() {
+          final Future<Null> refreshResult = widget.onRefresh();
+          assert(() {
+            if (refreshResult == null)
+              FlutterError.reportError(new FlutterErrorDetails(
+                exception: new FlutterError(
+                  'The onRefresh callback returned null.\n'
+                  'The RefreshIndicator onRefresh callback must return a Future.'
+                ),
+                context: 'when calling onRefresh',
+                library: 'material library',
+              ));
+            return true;
+          });
+          if (refreshResult == null)
+            return;
+          refreshResult.whenComplete(() {
             if (mounted && _mode == _RefreshIndicatorMode.refresh) {
               completer.complete();
               _dismiss(_RefreshIndicatorMode.done);
@@ -334,8 +362,8 @@ class RefreshIndicatorState extends State<RefreshIndicator> with TickerProviderS
   /// Creating the [RefreshIndicator] with a [GlobalKey<RefreshIndicatorState>]
   /// makes it possible to refer to the [RefreshIndicatorState].
   ///
-  /// The future returned from this method completes when the [onRefresh]
-  /// callback's future completes.
+  /// The future returned from this method completes when the
+  /// [RefreshIndicator.onRefresh] callback's future completes.
   ///
   /// If you await the future returned by this function from a [State], you
   /// should check that the state is still [mounted] before calling [setState].
@@ -385,15 +413,15 @@ class RefreshIndicatorState extends State<RefreshIndicator> with TickerProviderS
           left: 0.0,
           right: 0.0,
           child: new SizeTransition(
-            axisAlignment: _isIndicatorAtTop ? 1.0 : 0.0,
+            axisAlignment: _isIndicatorAtTop ? 1.0 : -1.0,
             sizeFactor: _positionFactor, // this is what brings it down
             child: new Container(
               padding: _isIndicatorAtTop
                 ? new EdgeInsets.only(top: widget.displacement)
                 : new EdgeInsets.only(bottom: widget.displacement),
               alignment: _isIndicatorAtTop
-                ? FractionalOffset.topCenter
-                : FractionalOffset.bottomCenter,
+                ? Alignment.topCenter
+                : Alignment.bottomCenter,
               child: new ScaleTransition(
                 scale: _scaleFactor,
                 child: new AnimatedBuilder(

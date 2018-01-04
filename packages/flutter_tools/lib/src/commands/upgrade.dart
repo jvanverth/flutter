@@ -28,7 +28,7 @@ class UpgradeCommand extends FlutterCommand {
   @override
   Future<Null> runCommand() async {
     try {
-      runCheckedSync(<String>[
+      await runCheckedAsync(<String>[
         'git', 'rev-parse', '@{u}'
       ], workingDirectory: Cache.flutterRoot);
     } catch (e) {
@@ -36,12 +36,6 @@ class UpgradeCommand extends FlutterCommand {
     }
 
     final FlutterVersion flutterVersion = FlutterVersion.instance;
-    if (flutterVersion.channel == 'alpha') {
-      // The alpha branch is deprecated. Rather than trying to pull the alpha
-      // branch, we should switch upstream to master.
-      printStatus('Switching to from alpha to master...');
-      runSync(<String>['git', 'branch', '--set-upstream-to=origin/master']);
-    }
 
     printStatus('Upgrading Flutter from ${Cache.flutterRoot}...');
 
@@ -74,7 +68,7 @@ class UpgradeCommand extends FlutterCommand {
     final String projRoot = findProjectRoot();
     if (projRoot != null) {
       printStatus('');
-      await pubGet(directory: projRoot, upgrade: true, checkLastModified: false);
+      await pubGet(context: PubContext.pubUpgrade, directory: projRoot, upgrade: true, checkLastModified: false);
     }
 
     // Run a doctor check in case system requirements have changed.

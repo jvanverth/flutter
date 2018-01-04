@@ -5,18 +5,23 @@
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart';
+
+import 'material.dart';
+import 'shadows.dart';
+import 'theme.dart';
 
 /// The base type for [MaterialSlice] and [MaterialGap].
 ///
 /// All [MergeableMaterialItem] objects need a [LocalKey].
+@immutable
 abstract class MergeableMaterialItem {
   /// Abstract const constructor. This constructor enables subclasses to provide
   /// const constructors so that they can be used in const expressions.
   ///
   /// The argument is the [key], which must not be null.
-  const MergeableMaterialItem(this.key);
+  const MergeableMaterialItem(this.key) : assert(key != null);
 
   /// The key for this item of the list.
   ///
@@ -33,14 +38,15 @@ abstract class MergeableMaterialItem {
 class MaterialSlice extends MergeableMaterialItem {
   /// Creates a slice of [Material] that's mergeable within a
   /// [MergeableMaterial].
-  MaterialSlice({
+  const MaterialSlice({
     @required LocalKey key,
     @required this.child,
-  }) : super(key) {
-    assert(key != null);
-  }
+  }) : assert(key != null),
+       super(key);
 
   /// The contents of this slice.
+  ///
+  /// {@macro flutter.widgets.child}
   final Widget child;
 
   @override
@@ -54,14 +60,13 @@ class MaterialSlice extends MergeableMaterialItem {
 /// All [MaterialGap] objects need a [LocalKey].
 class MaterialGap extends MergeableMaterialItem {
   /// Creates a Material gap with a given size.
-  MaterialGap({
+  const MaterialGap({
     @required LocalKey key,
     this.size: 16.0
-  }) : super(key) {
-    assert(key != null);
-  }
+  }) : assert(key != null),
+       super(key);
 
-  /// The main axis extent of this gap. For example, if the [MergableMaterial]
+  /// The main axis extent of this gap. For example, if the [MergeableMaterial]
   /// is vertical, then this is the height of the gap.
   final double size;
 
@@ -94,7 +99,7 @@ class MaterialGap extends MergeableMaterialItem {
 ///    but otherwise looks the same.
 class MergeableMaterial extends StatefulWidget {
   /// Creates a mergeable Material list of items.
-  MergeableMaterial({
+  const MergeableMaterial({
     Key key,
     this.mainAxis: Axis.vertical,
     this.elevation: 2,
@@ -119,10 +124,10 @@ class MergeableMaterial extends StatefulWidget {
   final bool hasDividers;
 
   @override
-  String toString() {
-    return 'MergeableMaterial('
-      'key: $key, mainAxis: $mainAxis, elevation: $elevation'
-    ')';
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(new EnumProperty<Axis>('mainAxis', mainAxis));
+    properties.add(new DoubleProperty('elevation', elevation.toDouble()));
   }
 
   @override
@@ -453,6 +458,9 @@ class _MergeableMaterialState extends State<MergeableMaterial> with TickerProvid
   }
 
   BorderRadius _borderRadius(int index, bool start, bool end) {
+    assert(kMaterialEdges[MaterialType.card].topLeft == kMaterialEdges[MaterialType.card].topRight);
+    assert(kMaterialEdges[MaterialType.card].topLeft == kMaterialEdges[MaterialType.card].bottomLeft);
+    assert(kMaterialEdges[MaterialType.card].topLeft == kMaterialEdges[MaterialType.card].bottomRight);
     final Radius cardRadius = kMaterialEdges[MaterialType.card].topLeft;
 
     Radius startRadius = Radius.zero;
@@ -518,7 +526,7 @@ class _MergeableMaterialState extends State<MergeableMaterial> with TickerProvid
         widgets.add(
           new Container(
             decoration: new BoxDecoration(
-              backgroundColor: Theme.of(context).cardColor,
+              color: Theme.of(context).cardColor,
               borderRadius: _borderRadius(i - 1, widgets.isEmpty, false),
               shape: BoxShape.rectangle
             ),
@@ -589,7 +597,7 @@ class _MergeableMaterialState extends State<MergeableMaterial> with TickerProvid
       widgets.add(
         new Container(
           decoration: new BoxDecoration(
-            backgroundColor: Theme.of(context).cardColor,
+            color: Theme.of(context).cardColor,
             borderRadius: _borderRadius(i - 1, widgets.isEmpty, true),
             shape: BoxShape.rectangle
           ),
@@ -643,14 +651,18 @@ class _MergeableMaterialListBody extends ListBody {
     this.boxShadows
   }) : super(children: children, mainAxis: mainAxis);
 
-  List<MergeableMaterialItem> items;
-  List<BoxShadow> boxShadows;
+  final List<MergeableMaterialItem> items;
+  final List<BoxShadow> boxShadows;
+
+  AxisDirection _getDirection(BuildContext context) {
+    return getAxisDirectionFromAxisReverseAndDirectionality(context, mainAxis, false);
+  }
 
   @override
   RenderListBody createRenderObject(BuildContext context) {
     return new _RenderMergeableMaterialListBody(
-      mainAxis: mainAxis,
-      boxShadows: boxShadows
+      axisDirection: _getDirection(context),
+      boxShadows: boxShadows,
     );
   }
 
@@ -658,7 +670,7 @@ class _MergeableMaterialListBody extends ListBody {
   void updateRenderObject(BuildContext context, RenderListBody renderObject) {
     final _RenderMergeableMaterialListBody materialRenderListBody = renderObject;
     materialRenderListBody
-      ..mainAxis = mainAxis
+      ..axisDirection = _getDirection(context)
       ..boxShadows = boxShadows;
   }
 }
@@ -666,9 +678,9 @@ class _MergeableMaterialListBody extends ListBody {
 class _RenderMergeableMaterialListBody extends RenderListBody {
   _RenderMergeableMaterialListBody({
     List<RenderBox> children,
-    Axis mainAxis: Axis.vertical,
+    AxisDirection axisDirection: AxisDirection.down,
     this.boxShadows
-  }) : super(children: children, mainAxis: mainAxis);
+  }) : super(children: children, axisDirection: axisDirection);
 
   List<BoxShadow> boxShadows;
 

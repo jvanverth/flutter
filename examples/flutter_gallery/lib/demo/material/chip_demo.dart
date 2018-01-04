@@ -26,9 +26,9 @@ class _ChipDemoState extends State<ChipDemo> {
       const Chip(
         label: const Text('Apple')
       ),
-      new Chip(
-        avatar: new CircleAvatar(child: const Text('B')),
-        label: const Text('Blueberry')
+      const Chip(
+        avatar: const CircleAvatar(child: const Text('B')),
+        label: const Text('Blueberry'),
       ),
     ];
 

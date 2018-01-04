@@ -6,19 +6,20 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
+import 'colors.dart';
+
 /// An iOS-style activity indicator.
 ///
 /// See also:
 ///
-///  * <https://developer.apple.com/ios/human-interface-guidelines/ui-controls/progress-indicators/#activity-indicators>
+///  * <https://developer.apple.com/ios/human-interface-guidelines/controls/progress-indicators/#activity-indicators>
 class CupertinoActivityIndicator extends StatefulWidget {
   /// Creates an iOS-style activity indicator.
-  CupertinoActivityIndicator({
+  const CupertinoActivityIndicator({
     Key key,
     this.animating: true,
-  }) : super(key: key) {
-    assert(animating != null);
-  }
+  }) : assert(animating != null),
+       super(key: key);
 
   /// Whether the activity indicator is running its animation.
   ///
@@ -49,6 +50,7 @@ class _CupertinoActivityIndicatorState extends State<CupertinoActivityIndicator>
 
   @override
   void didUpdateWidget(CupertinoActivityIndicator oldWidget) {
+    super.didUpdateWidget(oldWidget);
     if (widget.animating != oldWidget.animating) {
       if (widget.animating)
         _controller.repeat();
@@ -80,7 +82,7 @@ class _CupertinoActivityIndicatorState extends State<CupertinoActivityIndicator>
 const double _kTwoPI = math.PI * 2.0;
 const int _kTickCount = 12;
 const int _kHalfTickCount = _kTickCount ~/ 2;
-const Color _kTickColor = const Color(0xFFE0E0E0);
+const Color _kTickColor = CupertinoColors.lightBackgroundGray;
 const Color _kActiveTickColor = const Color(0xFF9D9D9D);
 final RRect _kTickFundamentalRRect = new RRect.fromLTRBXY(-10.0, 1.0, -5.0, -1.0, 1.0, 1.0);
 

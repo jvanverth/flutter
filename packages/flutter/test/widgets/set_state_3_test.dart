@@ -8,7 +8,7 @@ import 'package:flutter/widgets.dart';
 ChangerState changer;
 
 class Changer extends StatefulWidget {
-  Changer(this.child);
+  const Changer(this.child);
 
   final Widget child;
 
@@ -32,7 +32,7 @@ class ChangerState extends State<Changer> {
 }
 
 class Wrapper extends StatelessWidget {
-  Wrapper(this.child);
+  const Wrapper(this.child);
 
   final Widget child;
 
@@ -47,7 +47,7 @@ class Leaf extends StatefulWidget {
 
 class LeafState extends State<Leaf> {
   @override
-  Widget build(BuildContext context) => const Text("leaf");
+  Widget build(BuildContext context) => const Text('leaf', textDirection: TextDirection.ltr);
 }
 
 void main() {

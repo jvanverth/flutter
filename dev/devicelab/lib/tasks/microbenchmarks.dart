@@ -13,7 +13,7 @@ import 'package:flutter_devicelab/framework/framework.dart';
 import 'package:flutter_devicelab/framework/ios.dart';
 import 'package:flutter_devicelab/framework/utils.dart';
 
-/// The maximum amount of time a single microbenchmarks is allowed to take.
+/// The maximum amount of time a single microbenchmark is allowed to take.
 const Duration _kBenchmarkTimeout = const Duration(minutes: 6);
 
 /// Creates a device lab task that runs benchmarks in
@@ -23,23 +23,27 @@ TaskFunction createMicrobenchmarkTask() {
     final Device device = await devices.workingDevice;
     await device.unlock();
 
-    Future<Map<String, double>> _runMicrobench(String benchmarkPath) async {
+    Future<Map<String, double>> _runMicrobench(String benchmarkPath, {bool previewDart2: false}) async {
       Future<Map<String, double>> _run() async {
         print('Running $benchmarkPath');
         final Directory appDir = dir(
             path.join(flutterDirectory.path, 'dev/benchmarks/microbenchmarks'));
         final Process flutterProcess = await inDirectory(appDir, () async {
-          if (deviceOperatingSystem == DeviceOperatingSystem.ios) {
+          if (deviceOperatingSystem == DeviceOperatingSystem.ios)
             await prepareProvisioningCertificates(appDir.path);
-          }
+          final List<String> options = <String>[
+            '-v',
+            // --release doesn't work on iOS due to code signing issues
+            '--profile',
+            '-d',
+            device.deviceId,
+          ];
+          if (previewDart2)
+            options.add('--preview-dart-2');
+          setLocalEngineOptionIfNecessary(options);
+          options.add(benchmarkPath);
           return await _startFlutter(
-            options: <String>[
-              '--profile',
-              // --release doesn't work on iOS due to code signing issues
-              '-d',
-              device.deviceId,
-              benchmarkPath,
-            ],
+            options: options,
             canFail: false,
           );
         });
@@ -55,12 +59,39 @@ TaskFunction createMicrobenchmarkTask() {
     allResults.addAll(await _runMicrobench('lib/gestures/velocity_tracker_bench.dart'));
     allResults.addAll(await _runMicrobench('lib/stocks/animation_bench.dart'));
 
+    // Run micro-benchmarks once again in --preview-dart-2 mode.
+    // Append "_dart2" suffix to the result keys to distinguish them from
+    // the original results.
+
+    void addDart2Results(Map<String, double> benchmarkResults) {
+      benchmarkResults.forEach((String key, double result) {
+        allResults[key + '_dart2'] = result;
+      });
+    }
+
+    try {
+      addDart2Results(await _runMicrobench(
+          'lib/stocks/layout_bench.dart', previewDart2: true));
+      addDart2Results(await _runMicrobench(
+          'lib/stocks/layout_bench.dart', previewDart2: true));
+      addDart2Results(await _runMicrobench(
+          'lib/stocks/build_bench.dart', previewDart2: true));
+      addDart2Results(await _runMicrobench(
+          'lib/gestures/velocity_tracker_bench.dart', previewDart2: true));
+      addDart2Results(await _runMicrobench(
+          'lib/stocks/animation_bench.dart', previewDart2: true));
+    } catch (e) {
+      // Ignore any exceptions from running benchmarks in Dart 2.0 mode,
+      // as these benchmarks are considered flaky.
+      stderr.writeln('WARNING: microbenchmarks FAILED in --preview-dart-2 mode.');
+    }
+
     return new TaskResult.success(allResults, benchmarkScoreKeys: allResults.keys.toList());
   };
 }
 
 Future<Process> _startFlutter({
-  String command = 'run',
+  String command: 'run',
   List<String> options: const <String>[],
   bool canFail: false,
   Map<String, String> environment,
@@ -73,6 +104,7 @@ Future<Map<String, double>> _readJsonResults(Process process) {
   // IMPORTANT: keep these values in sync with dev/benchmarks/microbenchmarks/lib/common.dart
   const String jsonStart = '================ RESULTS ================';
   const String jsonEnd = '================ FORMATTED ==============';
+  const String jsonPrefix = ':::JSON:::';
   bool jsonStarted = false;
   final StringBuffer jsonBuf = new StringBuffer();
   final Completer<Map<String, double>> completer = new Completer<Map<String, double>>();
@@ -84,7 +116,6 @@ Future<Map<String, double>> _readJsonResults(Process process) {
         stderr.writeln('[STDERR] $line');
       });
 
-  int prefixLength = 0;
   bool processWasKilledIntentionally = false;
   final StreamSubscription<String> stdoutSub = process.stdout
       .transform(const Utf8Decoder())
@@ -94,7 +125,6 @@ Future<Map<String, double>> _readJsonResults(Process process) {
 
     if (line.contains(jsonStart)) {
       jsonStarted = true;
-      prefixLength = line.indexOf(jsonStart);
       return;
     }
 
@@ -107,7 +137,7 @@ Future<Map<String, double>> _readJsonResults(Process process) {
     }
 
     if (jsonStarted)
-      jsonBuf.writeln(line.substring(prefixLength));
+      jsonBuf.writeln(line.substring(line.indexOf(jsonPrefix) + jsonPrefix.length));
   });
 
   process.exitCode.then<int>((int code) {

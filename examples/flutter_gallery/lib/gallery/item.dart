@@ -12,18 +12,16 @@ import '../demo/all.dart';
 typedef Widget GalleryDemoBuilder();
 
 class GalleryItem extends StatelessWidget {
-  GalleryItem({
+  const GalleryItem({
     @required this.title,
     this.subtitle,
     @required this.category,
     @required this.routeName,
     @required this.buildRoute,
-  }) {
-    assert(title != null);
-    assert(category != null);
-    assert(routeName != null);
-    assert(buildRoute != null);
-  }
+  }) : assert(title != null),
+       assert(category != null),
+       assert(routeName != null),
+       assert(buildRoute != null);
 
   final String title;
   final String subtitle;
@@ -56,7 +54,7 @@ List<GalleryItem> _buildGalleryItems() {
     // Demos
     new GalleryItem(
       title: 'Shrine',
-      subtitle:'Basic shopping app',
+      subtitle: 'Basic shopping app',
       category: 'Demos',
       routeName: ShrineDemo.routeName,
       buildRoute: (BuildContext context) => new ShrineDemo(),
@@ -73,7 +71,14 @@ List<GalleryItem> _buildGalleryItems() {
       subtitle: 'Section organizer',
       category: 'Demos',
       routeName: AnimationDemo.routeName,
-      buildRoute: (BuildContext context) => new AnimationDemo(),
+      buildRoute: (BuildContext context) => const AnimationDemo(),
+    ),
+    new GalleryItem(
+      title: 'Video',
+      subtitle: 'Video playback',
+      category: 'Demos',
+      routeName: VideoDemo.routeName,
+      buildRoute: (BuildContext context) => const VideoDemo(),
     ),
     // Material Components
     new GalleryItem(
@@ -103,6 +108,13 @@ List<GalleryItem> _buildGalleryItems() {
       category: 'Material Components',
       routeName: ChipDemo.routeName,
       buildRoute: (BuildContext context) => new ChipDemo(),
+    ),
+    new GalleryItem(
+      title: 'Data tables',
+      subtitle: 'Data tables',
+      category: 'Material Components',
+      routeName: DataTableDemo.routeName,
+      buildRoute: (BuildContext context) => new DataTableDemo(),
     ),
     new GalleryItem(
       title: 'Date and time pickers',
@@ -151,7 +163,7 @@ List<GalleryItem> _buildGalleryItems() {
       subtitle: 'Row and column layout',
       category: 'Material Components',
       routeName: GridListDemo.routeName,
-      buildRoute: (BuildContext context) => new GridListDemo(),
+      buildRoute: (BuildContext context) => const GridListDemo(),
     ),
     new GalleryItem(
       title: 'Icons',
@@ -165,21 +177,21 @@ List<GalleryItem> _buildGalleryItems() {
       subtitle: 'List items with hidden actions',
       category: 'Material Components',
       routeName: LeaveBehindDemo.routeName,
-      buildRoute: (BuildContext context) => new LeaveBehindDemo(),
+      buildRoute: (BuildContext context) => const LeaveBehindDemo(),
     ),
     new GalleryItem(
       title: 'List',
       subtitle: 'Layout variations for scrollable lists',
       category: 'Material Components',
       routeName: ListDemo.routeName,
-      buildRoute: (BuildContext context) => new ListDemo(),
+      buildRoute: (BuildContext context) => const ListDemo(),
     ),
     new GalleryItem(
       title: 'Menus',
       subtitle: 'Menu buttons and simple menus',
       category: 'Material Components',
       routeName: MenuDemo.routeName,
-      buildRoute: (BuildContext context) => new MenuDemo(),
+      buildRoute: (BuildContext context) => const MenuDemo(),
     ),
     new GalleryItem(
       title: 'Modal bottom sheet',
@@ -214,7 +226,7 @@ List<GalleryItem> _buildGalleryItems() {
       subtitle: 'Refresh indicators',
       category: 'Material Components',
       routeName: OverscrollDemo.routeName,
-      buildRoute: (BuildContext context) => new OverscrollDemo(),
+      buildRoute: (BuildContext context) => const OverscrollDemo(),
     ),
     new GalleryItem(
       title: 'Scrollable tabs',
@@ -242,7 +254,7 @@ List<GalleryItem> _buildGalleryItems() {
       subtitle: 'Temporary message that appears at the bottom',
       category: 'Material Components',
       routeName: SnackBarDemo.routeName,
-      buildRoute: (BuildContext context) => new SnackBarDemo(),
+      buildRoute: (BuildContext context) => const SnackBarDemo(),
     ),
     new GalleryItem(
       title: 'Tabs',
@@ -256,7 +268,7 @@ List<GalleryItem> _buildGalleryItems() {
       subtitle: 'Single line of editable text and numbers',
       category: 'Material Components',
       routeName: TextFormFieldDemo.routeName,
-      buildRoute: (BuildContext context) => new TextFormFieldDemo(),
+      buildRoute: (BuildContext context) => const TextFormFieldDemo(),
     ),
     new GalleryItem(
       title: 'Tooltips',
@@ -288,6 +300,13 @@ List<GalleryItem> _buildGalleryItems() {
       buildRoute: (BuildContext context) => new CupertinoDialogDemo(),
     ),
     new GalleryItem(
+      title: 'Navigation',
+      subtitle: 'Cupertino styled navigation patterns',
+      category: 'Cupertino Components',
+      routeName: CupertinoNavigationDemo.routeName,
+      buildRoute: (BuildContext context) => new CupertinoNavigationDemo(),
+    ),
+    new GalleryItem(
       title: 'Sliders',
       subtitle: 'Cupertino styled sliders',
       category: 'Cupertino Components',
@@ -300,6 +319,14 @@ List<GalleryItem> _buildGalleryItems() {
       category: 'Cupertino Components',
       routeName: CupertinoSwitchDemo.routeName,
       buildRoute: (BuildContext context) => new CupertinoSwitchDemo(),
+    ),
+    // Media
+    new GalleryItem(
+      title: 'Animated images',
+      subtitle: 'GIF and WebP animations',
+      category: 'Media',
+      routeName: ImagesDemo.routeName,
+      buildRoute: (BuildContext context) => new ImagesDemo(),
     ),
     // Styles
     new GalleryItem(
@@ -327,11 +354,11 @@ List<GalleryItem> _buildGalleryItems() {
         subtitle: 'Simple recipe browser',
         category: 'Demos',
         routeName: PestoDemo.routeName,
-        buildRoute: (BuildContext context) => new PestoDemo(),
+        buildRoute: (BuildContext context) => const PestoDemo(),
       ),
     );
     return true;
-  });
+  }());
 
   return galleryItems;
 }

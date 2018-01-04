@@ -15,13 +15,14 @@ import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 
 import io.flutter.app.FlutterActivity;
-import io.flutter.plugin.common.FlutterEventChannel;
-import io.flutter.plugin.common.FlutterEventChannel.EventSink;
-import io.flutter.plugin.common.FlutterEventChannel.StreamHandler;
-import io.flutter.plugin.common.FlutterMethodChannel;
-import io.flutter.plugin.common.FlutterMethodChannel.MethodCallHandler;
-import io.flutter.plugin.common.FlutterMethodChannel.Response;
+import io.flutter.plugin.common.EventChannel;
+import io.flutter.plugin.common.EventChannel.EventSink;
+import io.flutter.plugin.common.EventChannel.StreamHandler;
+import io.flutter.plugin.common.MethodChannel;
+import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
+import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.common.MethodCall;
+import io.flutter.plugins.GeneratedPluginRegistrant;
 
 public class MainActivity extends FlutterActivity {
   private static final String BATTERY_CHANNEL = "samples.flutter.io/battery";
@@ -30,8 +31,8 @@ public class MainActivity extends FlutterActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-
-    new FlutterEventChannel(getFlutterView(), CHARGING_CHANNEL).setStreamHandler(
+    GeneratedPluginRegistrant.registerWith(this);
+    new EventChannel(getFlutterView(), CHARGING_CHANNEL).setStreamHandler(
         new StreamHandler() {
           private BroadcastReceiver chargingStateChangeReceiver;
           @Override
@@ -49,20 +50,20 @@ public class MainActivity extends FlutterActivity {
         }
     );
 
-    new FlutterMethodChannel(getFlutterView(), BATTERY_CHANNEL).setMethodCallHandler(
+    new MethodChannel(getFlutterView(), BATTERY_CHANNEL).setMethodCallHandler(
         new MethodCallHandler() {
           @Override
-          public void onMethodCall(MethodCall call, Response response) {
+          public void onMethodCall(MethodCall call, Result result) {
             if (call.method.equals("getBatteryLevel")) {
               int batteryLevel = getBatteryLevel();
 
               if (batteryLevel != -1) {
-                response.success(batteryLevel);
+                result.success(batteryLevel);
               } else {
-                response.error("UNAVAILABLE", "Battery level not available.", null);
+                result.error("UNAVAILABLE", "Battery level not available.", null);
               }
             } else {
-              response.notImplemented();
+              result.notImplemented();
             }
           }
         }

@@ -9,24 +9,24 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   Widget snapshotText(BuildContext context, AsyncSnapshot<String> snapshot) {
-    return new Text(snapshot.toString());
+    return new Text(snapshot.toString(), textDirection: TextDirection.ltr);
   }
   group('AsyncSnapshot', () {
     test('requiring data succeeds if data is present', () {
       expect(
-        new AsyncSnapshot<String>.withData(ConnectionState.done, 'hello').requireData,
+        const AsyncSnapshot<String>.withData(ConnectionState.done, 'hello').requireData,
         'hello',
       );
     });
     test('requiring data fails if there is an error', () {
       expect(
-        () => new AsyncSnapshot<String>.withError(ConnectionState.done, 'error').requireData,
+        () => const AsyncSnapshot<String>.withError(ConnectionState.done, 'error').requireData,
         throwsA(equals('error')),
       );
     });
     test('requiring data fails if snapshot has neither data nor error', () {
       expect(
-        () => new AsyncSnapshot<String>.nothing().requireData,
+        () => const AsyncSnapshot<String>.nothing().requireData,
         throwsStateError,
       );
     });
@@ -259,7 +259,7 @@ Future<Null> eventFiring(WidgetTester tester) async {
 }
 
 class StringCollector extends StreamBuilderBase<String, List<String>> {
-  StringCollector({ Key key, Stream<String> stream }) : super(key: key, stream: stream);
+  const StringCollector({ Key key, Stream<String> stream }) : super(key: key, stream: stream);
 
   @override
   List<String> initial() => <String>[];
@@ -280,5 +280,5 @@ class StringCollector extends StreamBuilderBase<String, List<String>> {
   List<String> afterDisconnected(List<String> current) => current..add('disc');
 
   @override
-  Widget build(BuildContext context, List<String> currentSummary) => new Text(currentSummary.join(', '));
+  Widget build(BuildContext context, List<String> currentSummary) => new Text(currentSummary.join(', '), textDirection: TextDirection.ltr);
 }

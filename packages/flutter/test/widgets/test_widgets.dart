@@ -7,15 +7,15 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 final BoxDecoration kBoxDecorationA = const BoxDecoration(
-  backgroundColor: const Color(0xFFFF0000)
+  color: const Color(0xFFFF0000),
 );
 
 final BoxDecoration kBoxDecorationB = const BoxDecoration(
-  backgroundColor: const Color(0xFF00FF00)
+  color: const Color(0xFF00FF00),
 );
 
 final BoxDecoration kBoxDecorationC = const BoxDecoration(
-  backgroundColor: const Color(0xFF0000FF)
+  color: const Color(0xFF0000FF),
 );
 
 class TestBuildCounter extends StatelessWidget {
@@ -30,7 +30,7 @@ class TestBuildCounter extends StatelessWidget {
 
 
 class FlipWidget extends StatefulWidget {
-  FlipWidget({ Key key, this.left, this.right }) : super(key: key);
+  const FlipWidget({ Key key, this.left, this.right }) : super(key: key);
 
   final Widget left;
   final Widget right;
@@ -54,6 +54,6 @@ class FlipWidgetState extends State<FlipWidget> {
   }
 }
 
-void flipStatefulWidget(WidgetTester tester) {
-  tester.state<FlipWidgetState>(find.byType(FlipWidget)).flip();
+void flipStatefulWidget(WidgetTester tester, { bool skipOffstage: true }) {
+  tester.state<FlipWidgetState>(find.byType(FlipWidget, skipOffstage: skipOffstage)).flip();
 }

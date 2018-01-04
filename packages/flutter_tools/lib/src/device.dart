@@ -32,54 +32,96 @@ class DeviceManager {
 
   final List<DeviceDiscovery> _deviceDiscoverers = <DeviceDiscovery>[];
 
-  /// A user-specified device ID.
-  String specifiedDeviceId;
+  String _specifiedDeviceId;
 
+  /// A user-specified device ID.
+  String get specifiedDeviceId {
+    if (_specifiedDeviceId == null || _specifiedDeviceId == 'all')
+      return null;
+    return _specifiedDeviceId;
+  }
+
+  set specifiedDeviceId(String id) {
+    _specifiedDeviceId = id;
+  }
+
+  /// True when the user has specified a single specific device.
   bool get hasSpecifiedDeviceId => specifiedDeviceId != null;
 
-  /// Return the devices with a name or id matching [deviceId].
-  /// This does a case insentitive compare with [deviceId].
-  Future<List<Device>> getDevicesById(String deviceId) async {
-    deviceId = deviceId.toLowerCase();
-    final List<Device> devices = await getAllConnectedDevices();
-    final Device device = devices.firstWhere(
-        (Device device) =>
-            device.id.toLowerCase() == deviceId ||
-            device.name.toLowerCase() == deviceId,
-        orElse: () => null);
+  /// True when the user has specified all devices by setting
+  /// specifiedDeviceId = 'all'.
+  bool get hasSpecifiedAllDevices => _specifiedDeviceId == 'all';
 
-    if (device != null)
-      return <Device>[device];
+  Stream<Device> getDevicesById(String deviceId) async* {
+    final List<Device> devices = await getAllConnectedDevices().toList();
+    deviceId = deviceId.toLowerCase();
+    bool exactlyMatchesDeviceId(Device device) =>
+        device.id.toLowerCase() == deviceId ||
+        device.name.toLowerCase() == deviceId;
+    bool startsWithDeviceId(Device device) =>
+        device.id.toLowerCase().startsWith(deviceId) ||
+        device.name.toLowerCase().startsWith(deviceId);
+
+    final Device exactMatch = devices.firstWhere(
+        exactlyMatchesDeviceId, orElse: () => null);
+    if (exactMatch != null) {
+      yield exactMatch;
+      return;
+    }
 
     // Match on a id or name starting with [deviceId].
-    return devices.where((Device device) {
-      return (device.id.toLowerCase().startsWith(deviceId) ||
-        device.name.toLowerCase().startsWith(deviceId));
-    }).toList();
+    for (Device device in devices.where(startsWithDeviceId))
+      yield device;
   }
 
   /// Return the list of connected devices, filtered by any user-specified device id.
-  Future<List<Device>> getDevices() async {
-    if (specifiedDeviceId == null) {
-      return getAllConnectedDevices();
-    } else {
-      return getDevicesById(specifiedDeviceId);
-    }
+  Stream<Device> getDevices() {
+    return hasSpecifiedDeviceId
+        ? getDevicesById(specifiedDeviceId)
+        : getAllConnectedDevices();
+  }
+
+  Iterable<DeviceDiscovery> get _platformDiscoverers {
+    return _deviceDiscoverers.where((DeviceDiscovery discoverer) => discoverer.supportsPlatform);
   }
 
   /// Return the list of all connected devices.
-  Future<List<Device>> getAllConnectedDevices() async {
-    return _deviceDiscoverers
-      .where((DeviceDiscovery discoverer) => discoverer.supportsPlatform)
-      .expand((DeviceDiscovery discoverer) => discoverer.devices)
-      .toList();
+  Stream<Device> getAllConnectedDevices() async* {
+    for (DeviceDiscovery discoverer in _platformDiscoverers) {
+      for (Device device in await discoverer.devices) {
+        yield device;
+      }
+    }
+  }
+
+  /// Whether we're capable of listing any devices given the current environment configuration.
+  bool get canListAnything {
+    return _platformDiscoverers.any((DeviceDiscovery discoverer) => discoverer.canListAnything);
+  }
+
+  /// Get diagnostics about issues with any connected devices.
+  Future<List<String>> getDeviceDiagnostics() async {
+    final List<String> diagnostics = <String>[];
+    for (DeviceDiscovery discoverer in _platformDiscoverers) {
+      diagnostics.addAll(await discoverer.getDiagnostics());
+    }
+    return diagnostics;
   }
 }
 
 /// An abstract class to discover and enumerate a specific type of devices.
 abstract class DeviceDiscovery {
   bool get supportsPlatform;
-  List<Device> get devices;
+
+  /// Whether this device discovery is capable of listing any devices given the
+  /// current environment configuration.
+  bool get canListAnything;
+
+  Future<List<Device>> get devices;
+
+  /// Gets a list of diagnostic messages pertaining to issues with any connected
+  /// devices (will be an empty list if there are no issues).
+  Future<List<String>> getDiagnostics() => new Future<List<String>>.value(<String>[]);
 }
 
 /// A [DeviceDiscovery] implementation that uses polling to discover device adds
@@ -87,31 +129,38 @@ abstract class DeviceDiscovery {
 abstract class PollingDeviceDiscovery extends DeviceDiscovery {
   PollingDeviceDiscovery(this.name);
 
-  static const Duration _pollingDuration = const Duration(seconds: 4);
+  static const Duration _pollingInterval = const Duration(seconds: 4);
+  static const Duration _pollingTimeout = const Duration(seconds: 30);
 
   final String name;
   ItemListNotifier<Device> _items;
-  Timer _timer;
+  Poller _poller;
 
-  List<Device> pollingGetDevices();
+  Future<List<Device>> pollingGetDevices();
 
   void startPolling() {
-    if (_timer == null) {
+    if (_poller == null) {
       _items ??= new ItemListNotifier<Device>();
-      _timer = new Timer.periodic(_pollingDuration, (Timer timer) {
-        _items.updateWithNewList(pollingGetDevices());
-      });
+
+      _poller = new Poller(() async {
+        try {
+          final List<Device> devices = await pollingGetDevices().timeout(_pollingTimeout);
+          _items.updateWithNewList(devices);
+        } on TimeoutException {
+          printTrace('Device poll timed out.');
+        }
+      }, _pollingInterval);
     }
   }
 
   void stopPolling() {
-    _timer?.cancel();
-    _timer = null;
+    _poller?.cancel();
+    _poller = null;
   }
 
   @override
-  List<Device> get devices {
-    _items ??= new ItemListNotifier<Device>.from(pollingGetDevices());
+  Future<List<Device>> get devices async {
+    _items ??= new ItemListNotifier<Device>.from(await pollingGetDevices());
     return _items.items;
   }
 
@@ -141,30 +190,31 @@ abstract class Device {
   bool get supportsStartPaused => true;
 
   /// Whether it is an emulated device running on localhost.
-  bool get isLocalEmulator;
+  Future<bool> get isLocalEmulator;
 
   /// Check if a version of the given app is already installed
-  bool isAppInstalled(ApplicationPackage app);
+  Future<bool> isAppInstalled(ApplicationPackage app);
 
   /// Check if the latest build of the [app] is already installed.
-  bool isLatestBuildInstalled(ApplicationPackage app);
+  Future<bool> isLatestBuildInstalled(ApplicationPackage app);
 
   /// Install an app package on the current device
-  bool installApp(ApplicationPackage app);
+  Future<bool> installApp(ApplicationPackage app);
 
   /// Uninstall an app package from the current device
-  bool uninstallApp(ApplicationPackage app);
+  Future<bool> uninstallApp(ApplicationPackage app);
 
   /// Check if the device is supported by Flutter
   bool isSupported();
 
   // String meant to be displayed to the user indicating if the device is
   // supported by Flutter, and, if not, why.
-  String supportMessage() => isSupported() ? "Supported" : "Unsupported";
+  String supportMessage() => isSupported() ? 'Supported' : 'Unsupported';
 
-  TargetPlatform get targetPlatform;
+  /// The device's platform.
+  Future<TargetPlatform> get targetPlatform;
 
-  String get sdkNameAndVersion;
+  Future<String> get sdkNameAndVersion;
 
   /// Get a log reader for this device.
   /// If [app] is specified, this will return a log reader specific to that
@@ -174,22 +224,6 @@ abstract class Device {
   /// Get the port forwarder for this device.
   DevicePortForwarder get portForwarder;
 
-  Future<int> forwardPort(int devicePort, {int hostPort}) async {
-    try {
-      hostPort = await portForwarder
-          .forward(devicePort, hostPort: hostPort)
-          .timeout(const Duration(seconds: 60), onTimeout: () {
-            throw new ToolExit(
-                'Timeout while atempting to foward device port $devicePort');
-          });
-      printTrace('Forwarded host port $hostPort to device port $devicePort');
-      return hostPort;
-    } catch (e) {
-      throw new ToolExit(
-          'Unable to forward host port $hostPort to device port $devicePort: $e');
-    }
-  }
-
   /// Clear the device's logs.
   void clearLogs();
 
@@ -197,16 +231,21 @@ abstract class Device {
   ///
   /// [platformArgs] allows callers to pass platform-specific arguments to the
   /// start call. The build mode is not used by all platforms.
+  ///
+  /// If [usesTerminalUi] is true, Flutter Tools may attempt to prompt the
+  /// user to resolve fixable issues such as selecting a signing certificate
+  /// for iOS device deployment. Set to false if stdin cannot be read from while
+  /// attempting to start the app.
   Future<LaunchResult> startApp(
-    ApplicationPackage package,
-    BuildMode mode, {
+    ApplicationPackage package, {
     String mainPath,
     String route,
     DebuggingOptions debuggingOptions,
     Map<String, dynamic> platformArgs,
-    String kernelPath,
     bool prebuiltApplication: false,
-    bool applicationNeedsRebuild: false
+    bool applicationNeedsRebuild: false,
+    bool usesTerminalUi: true,
+    bool ipv6: false,
   });
 
   /// Does this device implement support for hot reloading / restarting?
@@ -238,23 +277,24 @@ abstract class Device {
   @override
   String toString() => name;
 
-  static Iterable<String> descriptions(List<Device> devices) {
+  static Stream<String> descriptions(List<Device> devices) async* {
     if (devices.isEmpty)
-      return <String>[];
+      return;
 
     // Extract device information
     final List<List<String>> table = <List<String>>[];
     for (Device device in devices) {
       String supportIndicator = device.isSupported() ? '' : ' (unsupported)';
-      if (device.isLocalEmulator) {
-        final String type = device.targetPlatform == TargetPlatform.ios ? 'simulator' : 'emulator';
+      final TargetPlatform targetPlatform = await device.targetPlatform;
+      if (await device.isLocalEmulator) {
+        final String type = targetPlatform == TargetPlatform.ios ? 'simulator' : 'emulator';
         supportIndicator += ' ($type)';
       }
       table.add(<String>[
         device.name,
         device.id,
-        '${getNameForTargetPlatform(device.targetPlatform)}',
-        '${device.sdkNameAndVersion}$supportIndicator',
+        '${getNameForTargetPlatform(targetPlatform)}',
+        '${await device.sdkNameAndVersion}$supportIndicator',
       ]);
     }
 
@@ -266,38 +306,41 @@ abstract class Device {
     }
 
     // Join columns into lines of text
-    return table.map((List<String> row) =>
-        indices.map((int i) => row[i].padRight(widths[i])).join(' • ') +
-        ' • ${row.last}');
+    for (List<String> row in table) {
+      yield indices.map((int i) => row[i].padRight(widths[i])).join(' • ') + ' • ${row.last}';
+    }
   }
 
-  static void printDevices(List<Device> devices) {
-    descriptions(devices).forEach(printStatus);
+  static Future<Null> printDevices(List<Device> devices) async {
+    await descriptions(devices).forEach(printStatus);
   }
 }
 
 class DebuggingOptions {
-  DebuggingOptions.enabled(this.buildMode, {
+  DebuggingOptions.enabled(this.buildInfo, {
     this.startPaused: false,
+    this.enableSoftwareRendering: false,
+    this.traceSkia: false,
     this.useTestFonts: false,
     this.observatoryPort,
-    this.diagnosticPort
    }) : debuggingEnabled = true;
 
-  DebuggingOptions.disabled(this.buildMode) :
+  DebuggingOptions.disabled(this.buildInfo) :
     debuggingEnabled = false,
     useTestFonts = false,
     startPaused = false,
-    observatoryPort = null,
-    diagnosticPort = null;
+    enableSoftwareRendering = false,
+    traceSkia = false,
+    observatoryPort = null;
 
   final bool debuggingEnabled;
 
-  final BuildMode buildMode;
+  final BuildInfo buildInfo;
   final bool startPaused;
+  final bool enableSoftwareRendering;
+  final bool traceSkia;
   final bool useTestFonts;
   final int observatoryPort;
-  final int diagnosticPort;
 
   bool get hasObservatoryPort => observatoryPort != null;
 
@@ -308,35 +351,22 @@ class DebuggingOptions {
       return new Future<int>.value(observatoryPort);
     return portScanner.findPreferredPort(observatoryPort ?? kDefaultObservatoryPort);
   }
-
-  bool get hasDiagnosticPort => diagnosticPort != null;
-
-  /// Return the user specified diagnostic port. If that isn't available,
-  /// return [kDefaultDiagnosticPort], or a port close to that one.
-  Future<int> findBestDiagnosticPort() {
-    if (hasDiagnosticPort)
-      return new Future<int>.value(diagnosticPort);
-    return portScanner.findPreferredPort(diagnosticPort ?? kDefaultDiagnosticPort);
-  }
 }
 
 class LaunchResult {
-  LaunchResult.succeeded({ this.observatoryUri, this.diagnosticUri }) : started = true;
-  LaunchResult.failed() : started = false, observatoryUri = null, diagnosticUri = null;
+  LaunchResult.succeeded({ this.observatoryUri }) : started = true;
+  LaunchResult.failed() : started = false, observatoryUri = null;
 
   bool get hasObservatory => observatoryUri != null;
 
   final bool started;
   final Uri observatoryUri;
-  final Uri diagnosticUri;
 
   @override
   String toString() {
     final StringBuffer buf = new StringBuffer('started=$started');
     if (observatoryUri != null)
       buf.write(', observatory=$observatoryUri');
-    if (diagnosticUri != null)
-      buf.write(', diagnostic=$diagnosticUri');
     return buf.toString();
   }
 }
@@ -378,14 +408,13 @@ abstract class DeviceLogReader {
   @override
   String toString() => name;
 
-  /// Process ID of the app on the deivce.
+  /// Process ID of the app on the device.
   int appPid;
 }
 
 /// Describes an app running on the device.
 class DiscoveredApp {
-  DiscoveredApp(this.id, this.observatoryPort, this.diagnosticPort);
+  DiscoveredApp(this.id, this.observatoryPort);
   final String id;
   final int observatoryPort;
-  final int diagnosticPort;
 }

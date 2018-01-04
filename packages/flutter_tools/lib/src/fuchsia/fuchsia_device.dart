@@ -37,37 +37,37 @@ class FuchsiaDevice extends Device {
   final String name;
 
   @override
-  bool get isLocalEmulator => false;
+  Future<bool> get isLocalEmulator async => false;
 
   @override
   bool get supportsStartPaused => false;
 
   @override
-  bool isAppInstalled(ApplicationPackage app) => false;
+  Future<bool> isAppInstalled(ApplicationPackage app) async => false;
 
   @override
-  bool isLatestBuildInstalled(ApplicationPackage app) => false;
+  Future<bool> isLatestBuildInstalled(ApplicationPackage app) async => false;
 
   @override
-  bool installApp(ApplicationPackage app) => false;
+  Future<bool> installApp(ApplicationPackage app) => new Future<bool>.value(false);
 
   @override
-  bool uninstallApp(ApplicationPackage app) => false;
+  Future<bool> uninstallApp(ApplicationPackage app) async => false;
 
   @override
   bool isSupported() => true;
 
   @override
   Future<LaunchResult> startApp(
-    ApplicationPackage app,
-    BuildMode mode, {
+    ApplicationPackage app, {
     String mainPath,
     String route,
     DebuggingOptions debuggingOptions,
     Map<String, dynamic> platformArgs,
     bool prebuiltApplication: false,
-    String kernelPath,
     bool applicationNeedsRebuild: false,
+    bool usesTerminalUi: false,
+    bool ipv6: false,
   }) => new Future<Null>.error('unimplemented');
 
   @override
@@ -77,10 +77,10 @@ class FuchsiaDevice extends Device {
   }
 
   @override
-  TargetPlatform get targetPlatform => TargetPlatform.fuchsia;
+  Future<TargetPlatform> get targetPlatform async => TargetPlatform.fuchsia;
 
   @override
-  String get sdkNameAndVersion => 'Fuchsia';
+  Future<String> get sdkNameAndVersion async => 'Fuchsia';
 
   _FuchsiaLogReader _logReader;
   @override

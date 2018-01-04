@@ -24,13 +24,18 @@ class BenchmarkingBinding extends LiveTestWidgetsFlutterBinding {
   void handleBeginFrame(Duration rawTimeStamp) {
     stopwatch.start();
     super.handleBeginFrame(rawTimeStamp);
+  }
+
+  @override
+  void handleDrawFrame() {
+    super.handleDrawFrame();
     stopwatch.stop();
   }
 }
 
 Future<Null> main() async {
   assert(false); // don't run this in checked mode! Use --release.
-  stock_data.StockDataFetcher.actuallyFetchData = false;
+  stock_data.StockData.actuallyFetchData = false;
 
   final Stopwatch wallClockWatch = new Stopwatch();
   final Stopwatch cpuWatch = new Stopwatch();

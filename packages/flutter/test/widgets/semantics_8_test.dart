@@ -21,12 +21,14 @@ void main() {
           child: new Semantics(
             container: true,
             child: new Stack(
+              textDirection: TextDirection.ltr,
               children: <Widget>[
-                const Semantics(
-                  checked: true
+                new Semantics(
+                  checked: true,
                 ),
-                const Semantics(
-                  label: 'label'
+                new Semantics(
+                  label: 'label',
+                  textDirection: TextDirection.ltr,
                 )
               ]
             )
@@ -36,10 +38,16 @@ void main() {
     );
 
     expect(semantics, hasSemantics(
-      new TestSemantics(
-        id: 0,
-        flags: SemanticsFlags.hasCheckedState.index | SemanticsFlags.isChecked.index,
-        label: 'label',
+      new TestSemantics.root(
+        children: <TestSemantics>[
+          new TestSemantics.rootChild(
+            id: 1,
+            flags: SemanticsFlags.hasCheckedState.index | SemanticsFlags.isChecked.index,
+            label: 'label',
+            textDirection: TextDirection.ltr,
+            rect: TestSemantics.fullScreen,
+          )
+        ]
       )
     ));
 
@@ -51,11 +59,13 @@ void main() {
           child: new Semantics(
             container: true,
             child: new Stack(
+              textDirection: TextDirection.ltr,
               children: <Widget>[
-                const Semantics(
-                  label: 'label'
+                new Semantics(
+                  label: 'label',
+                  textDirection: TextDirection.ltr,
                 ),
-                const Semantics(
+                new Semantics(
                   checked: true
                 )
               ]
@@ -66,11 +76,17 @@ void main() {
     );
 
     expect(semantics, hasSemantics(
-      new TestSemantics(
-        id: 0,
-        flags: SemanticsFlags.hasCheckedState.index | SemanticsFlags.isChecked.index,
-        label: 'label',
-      )
+      new TestSemantics.root(
+        children: <TestSemantics>[
+          new TestSemantics.rootChild(
+            id: 1,
+            flags: SemanticsFlags.hasCheckedState.index | SemanticsFlags.isChecked.index,
+            label: 'label',
+            textDirection: TextDirection.ltr,
+            rect: TestSemantics.fullScreen,
+          )
+        ],
+      ),
     ));
 
     semantics.dispose();

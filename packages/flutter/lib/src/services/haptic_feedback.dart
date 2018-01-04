@@ -15,10 +15,10 @@ class HapticFeedback {
 
   /// Provides haptic feedback to the user for a short duration.
   ///
-  /// On iOS, this uses the platform "sound" for vibration (via
-  /// `AudioServicesPlaySystemSound`).
+  /// On iOS devices that support haptic feedback, this uses the default system
+  /// vibration value (`kSystemSoundID_Vibrate`).
   ///
-  /// On Android, this uses the platform haptic feedback API to simulates a
+  /// On Android, this uses the platform haptic feedback API to simulate a
   /// short tap on a virtual keyboard.
   static Future<Null> vibrate() async {
     await SystemChannels.platform.invokeMethod('HapticFeedback.vibrate');

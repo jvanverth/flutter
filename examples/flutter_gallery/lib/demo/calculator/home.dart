@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'logic.dart';
 
 class Calculator extends StatefulWidget {
-  Calculator({Key key}) : super(key: key);
+  const Calculator({Key key}) : super(key: key);
 
   @override
   _CalculatorState createState() => new _CalculatorState();
@@ -18,7 +18,7 @@ class _CalculatorState extends State<Calculator> {
   /// keep a stack of previous expressions so we can return to earlier states
   /// when the user hits the DEL key.
   final List<CalcExpression> _expressionStack = <CalcExpression>[];
-  CalcExpression _expression = new CalcExpression.Empty();
+  CalcExpression _expression = new CalcExpression.empty();
 
   // Make `expression` the current expression and push the previous current
   // expression onto the stack.
@@ -32,11 +32,11 @@ class _CalculatorState extends State<Calculator> {
     if (_expressionStack.isNotEmpty) {
       _expression = _expressionStack.removeLast();
     } else {
-      _expression = new CalcExpression.Empty();
+      _expression = new CalcExpression.empty();
     }
   }
 
-  /// Set `resultExpression` to the currrent expression and clear the stack.
+  /// Set `resultExpression` to the current expression and clear the stack.
   void setResult(CalcExpression resultExpression) {
     _expressionStack.clear();
     _expression = resultExpression;
@@ -116,7 +116,7 @@ class _CalculatorState extends State<Calculator> {
     return new Scaffold(
       appBar: new AppBar(
         backgroundColor: Theme.of(context).canvasColor,
-        elevation: 0
+        elevation: 0.0
       ),
       body: new Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -126,7 +126,7 @@ class _CalculatorState extends State<Calculator> {
             flex: 2,
             child: new CalcDisplay(content: _expression.toString())
           ),
-          new Divider(height: 1.0),
+          const Divider(height: 1.0),
           new Expanded(
             flex: 3,
             child: new KeyPad(calcState: this)
@@ -138,7 +138,7 @@ class _CalculatorState extends State<Calculator> {
 }
 
 class CalcDisplay extends StatelessWidget {
-  CalcDisplay({ this.content });
+  const CalcDisplay({ this.content });
 
   final String content;
 
@@ -154,7 +154,7 @@ class CalcDisplay extends StatelessWidget {
 }
 
 class KeyPad extends StatelessWidget {
-  KeyPad({ this.calcState });
+  const KeyPad({ this.calcState });
 
   final _CalculatorState calcState;
 
@@ -222,7 +222,7 @@ class KeyPad extends StatelessWidget {
 }
 
 class KeyRow extends StatelessWidget {
-  KeyRow(this.keys);
+  const KeyRow(this.keys);
 
   final List<Widget> keys;
 
@@ -238,7 +238,7 @@ class KeyRow extends StatelessWidget {
 }
 
 class CalcKey extends StatelessWidget {
-  CalcKey(this.text, this.onTap);
+  const CalcKey(this.text, this.onTap);
 
   final String text;
   final GestureTapCallback onTap;

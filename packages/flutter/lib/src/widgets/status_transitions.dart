@@ -12,12 +12,11 @@ abstract class StatusTransitionWidget extends StatefulWidget {
   /// Initializes fields for subclasses.
   ///
   /// The [animation] argument must not be null.
-  StatusTransitionWidget({
+  const StatusTransitionWidget({
     Key key,
     @required this.animation
-  }) : super(key: key) {
-    assert(animation != null);
-  }
+  }) : assert(animation != null),
+       super(key: key);
 
   /// The animation to which this widget is listening.
   final Animation<double> animation;
@@ -39,6 +38,7 @@ class _StatusTransitionState extends State<StatusTransitionWidget> {
 
   @override
   void didUpdateWidget(StatusTransitionWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
     if (widget.animation != oldWidget.animation) {
       oldWidget.animation.removeStatusListener(_animationStatusChanged);
       widget.animation.addStatusListener(_animationStatusChanged);

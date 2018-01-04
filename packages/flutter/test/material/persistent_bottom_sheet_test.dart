@@ -30,7 +30,7 @@ void main() {
     await tester.pump();
     expect(buildCount, equals(1));
 
-    bottomSheet.setState((){ });
+    bottomSheet.setState(() { });
     await tester.pump();
     expect(buildCount, equals(2));
   });
@@ -48,6 +48,7 @@ void main() {
     scaffoldKey.currentState.showBottomSheet<Null>((BuildContext context) {
       return new ListView(
         shrinkWrap: true,
+        primary: false,
         children: <Widget>[
           new Container(height: 100.0, child: const Text('One')),
           new Container(height: 100.0, child: const Text('Two')),
@@ -66,4 +67,70 @@ void main() {
     expect(find.text('Two'), findsNothing);
   });
 
+  testWidgets('showBottomSheet()', (WidgetTester tester) async {
+    final GlobalKey key = new GlobalKey();
+    await tester.pumpWidget(new MaterialApp(
+      home: new Scaffold(
+        body: new Placeholder(key: key),
+      )
+    ));
+
+    int buildCount = 0;
+    showBottomSheet<Null>(
+      context: key.currentContext,
+      builder: (BuildContext context) {
+        return new Builder(
+          builder: (BuildContext context) {
+            buildCount += 1;
+            return new Container(height: 200.0);
+          }
+        );
+      },
+    );
+    await tester.pump();
+    expect(buildCount, equals(1));
+  });
+
+  testWidgets('Scaffold removes top MediaQuery padding', (WidgetTester tester) async {
+    BuildContext scaffoldContext;
+    BuildContext bottomSheetContext;
+
+    await tester.pumpWidget(new MaterialApp(
+      home: new MediaQuery(
+        data: const MediaQueryData(
+          padding: const EdgeInsets.all(50.0),
+        ),
+        child: new Scaffold(
+          resizeToAvoidBottomPadding: false,
+          body: new Builder(
+            builder: (BuildContext context) {
+              scaffoldContext = context;
+              return new Container();
+            }
+          ),
+        ),
+      )
+    ));
+
+    await tester.pump();
+
+    showBottomSheet<Null>(
+      context: scaffoldContext,
+      builder: (BuildContext context) {
+        bottomSheetContext = context;
+        return new Container();
+      },
+    );
+
+    await tester.pump();
+
+    expect(
+      MediaQuery.of(bottomSheetContext).padding,
+      const EdgeInsets.only(
+        bottom: 50.0,
+        left: 50.0,
+        right: 50.0,
+      ),
+    );
+  });
 }

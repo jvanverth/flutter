@@ -44,7 +44,7 @@ import 'ticker_provider.dart';
 /// overlay entry is still built even if it is not visible, set [maintainState]
 /// to true. This is more expensive, so should be done with care. In particular,
 /// if widgets in an overlay entry with [maintainState] set to true repeatedly
-/// call [setState], the user's battery will be drained unnecessarily.
+/// call [State.setState], the user's battery will be drained unnecessarily.
 ///
 /// See also:
 ///
@@ -62,11 +62,11 @@ class OverlayEntry {
     @required this.builder,
     bool opaque: false,
     bool maintainState: false,
-  }) : _opaque = opaque, _maintainState = maintainState {
-    assert(builder != null);
-    assert(opaque != null);
-    assert(maintainState != null);
-  }
+  }) : assert(builder != null),
+       assert(opaque != null),
+       assert(maintainState != null),
+       _opaque = opaque,
+       _maintainState = maintainState;
 
   /// This entry will include the widget built by this builder in the overlay at
   /// the entry's position.
@@ -99,7 +99,7 @@ class OverlayEntry {
   /// overlay entry is still built even if it is not visible, set [maintainState]
   /// to true. This is more expensive, so should be done with care. In particular,
   /// if widgets in an overlay entry with [maintainState] set to true repeatedly
-  /// call [setState], the user's battery will be drained unnecessarily.
+  /// call [State.setState], the user's battery will be drained unnecessarily.
   ///
   /// This is used by the [Navigator] and [Route] objects to ensure that routes
   /// are kept around even when in the background, so that [Future]s promised
@@ -123,8 +123,8 @@ class OverlayEntry {
   /// This should only be called once.
   ///
   /// If this method is called while the [SchedulerBinding.schedulerPhase] is
-  /// [SchedulerBinding.persistentCallbacks], i.e. during the build, layout, or
-  /// paint phases (see [WidgetsBinding.beginFrame]), then the removal is
+  /// [SchedulerPhase.persistentCallbacks], i.e. during the build, layout, or
+  /// paint phases (see [WidgetsBinding.drawFrame]), then the removal is
   /// delayed until the post-frame callbacks phase. Otherwise the removal is
   /// done synchronously. This means that it is safe to call during builds, but
   /// also that if you do call this during a build, the UI will not update until
@@ -150,13 +150,13 @@ class OverlayEntry {
   }
 
   @override
-  String toString() => '$runtimeType#$hashCode(opaque: $opaque; maintainState: $maintainState)';
+  String toString() => '${describeIdentity(this)}(opaque: $opaque; maintainState: $maintainState)';
 }
 
 class _OverlayEntry extends StatefulWidget {
-  _OverlayEntry(this.entry) : super(key: entry._key) {
-    assert(entry != null);
-  }
+  _OverlayEntry(this.entry)
+    : assert(entry != null),
+      super(key: entry._key);
 
   final OverlayEntry entry;
 
@@ -198,15 +198,13 @@ class Overlay extends StatefulWidget {
   /// The initial entries will be inserted into the overlay when its associated
   /// [OverlayState] is initialized.
   ///
-  /// Rather than creating an overlay, consider using the overlay that has
-  /// already been created by the [WidgetsApp] or the [MaterialApp] for this
-  /// application.
-  Overlay({
+  /// Rather than creating an overlay, consider using the overlay that is
+  /// created by the [WidgetsApp] or the [MaterialApp] for the application.
+  const Overlay({
     Key key,
     this.initialEntries: const <OverlayEntry>[]
-  }) : super(key: key) {
-    assert(initialEntries != null);
-  }
+  }) : assert(initialEntries != null),
+       super(key: key);
 
   /// The entries to include in the overlay initially.
   ///
@@ -217,8 +215,8 @@ class Overlay extends StatefulWidget {
   /// To add entries to an [Overlay] that is already in the tree, use
   /// [Overlay.of] to obtain the [OverlayState] (or assign a [GlobalKey] to the
   /// [Overlay] widget and obtain the [OverlayState] via
-  /// [GlobalKey.currentState]), and then use [OverlayState.add] or
-  /// [OverlayState.addAll].
+  /// [GlobalKey.currentState]), and then use [OverlayState.insert] or
+  /// [OverlayState.insertAll].
   ///
   /// To remove an entry from an [Overlay], use [OverlayEntry.remove].
   final List<OverlayEntry> initialEntries;
@@ -253,7 +251,7 @@ class Overlay extends StatefulWidget {
         );
       }
       return true;
-    });
+    }());
     return result;
   }
 
@@ -333,7 +331,7 @@ class OverlayState extends State<Overlay> with TickerProviderStateMixin {
           break;
       }
       return true;
-    });
+    }());
     return result;
   }
 
@@ -363,15 +361,20 @@ class OverlayState extends State<Overlay> with TickerProviderStateMixin {
       }
     }
     return new _Theatre(
-      onstage: new Stack(children: onstageChildren.reversed.toList(growable: false)),
+      onstage: new Stack(
+        fit: StackFit.expand,
+        children: onstageChildren.reversed.toList(growable: false),
+      ),
       offstage: offstageChildren,
     );
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('entries: $_entries');
+  void debugFillProperties(DiagnosticPropertiesBuilder description) {
+    super.debugFillProperties(description);
+    // TODO(jacobr): use IterableProperty instead as that would
+    // provide a slightly more consistent string summary of the List.
+    description.add(new DiagnosticsProperty<List<OverlayEntry>>('entries', _entries));
   }
 }
 
@@ -387,10 +390,8 @@ class _Theatre extends RenderObjectWidget {
   _Theatre({
     this.onstage,
     @required this.offstage,
-  }) {
-    assert(offstage != null);
-    assert(!offstage.any((Widget child) => child == null));
-  }
+  }) : assert(offstage != null),
+       assert(!offstage.any((Widget child) => child == null));
 
   final Stack onstage;
 
@@ -404,9 +405,9 @@ class _Theatre extends RenderObjectWidget {
 }
 
 class _TheatreElement extends RenderObjectElement {
-  _TheatreElement(_Theatre widget) : super(widget) {
-    assert(!debugChildrenHaveDuplicateKeys(widget, widget.offstage));
-  }
+  _TheatreElement(_Theatre widget)
+    : assert(!debugChildrenHaveDuplicateKeys(widget, widget.offstage)),
+      super(widget);
 
   @override
   _Theatre get widget => super.widget;
@@ -422,6 +423,7 @@ class _TheatreElement extends RenderObjectElement {
 
   @override
   void insertChildRenderObject(RenderBox child, dynamic slot) {
+    assert(renderObject.debugValidateChild(child));
     if (slot == _onstageSlot) {
       assert(child is RenderStack);
       renderObject.child = child;
@@ -468,7 +470,7 @@ class _TheatreElement extends RenderObjectElement {
   }
 
   @override
-  void visitChildrenForSemantics(ElementVisitor visitor) {
+  void debugVisitOnstageChildren(ElementVisitor visitor) {
     if (_onstage != null)
       visitor(_onstage);
   }
@@ -557,28 +559,39 @@ class _RenderTheatre extends RenderBox
   }
 
   @override
-  String debugDescribeChildren(String prefix) {
-    String result = '';
+  List<DiagnosticsNode> debugDescribeChildren() {
+    final List<DiagnosticsNode> children = <DiagnosticsNode>[];
+
     if (child != null)
-      result += '$prefix \u2502\n${child.toStringDeep('$prefix \u251C\u2500onstage: ', '$prefix \u254E')}';
-    if (firstChild != null) {
+      children.add(child.toDiagnosticsNode(name: 'onstage'));
+
+    if (firstChild  != null) {
       RenderBox child = firstChild;
+
       int count = 1;
-      while (child != lastChild) {
-        result += '${child.toStringDeep("$prefix \u254E\u254Coffstage $count: ", "$prefix \u254E")}';
-        count += 1;
+      while (true) {
+        children.add(
+          child.toDiagnosticsNode(
+            name: 'offstage $count',
+            style: DiagnosticsTreeStyle.offstage,
+          ),
+        );
+        if (child == lastChild)
+          break;
         final StackParentData childParentData = child.parentData;
         child = childParentData.nextSibling;
-      }
-      if (child != null) {
-        assert(child == lastChild);
-        result += '${child.toStringDeep("$prefix \u2514\u254Coffstage $count: ", "$prefix  ")}';
+        count += 1;
       }
     } else {
-      result += '$prefix \u2514\u254Cno offstage children';
+      children.add(
+        new DiagnosticsNode.message(
+          'no offstage children',
+          style: DiagnosticsTreeStyle.offstage,
+        ),
+      );
     }
-    return result;
-  }
+    return children;
+   }
 
   @override
   void visitChildrenForSemantics(RenderObjectVisitor visitor) {

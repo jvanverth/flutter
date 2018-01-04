@@ -6,6 +6,7 @@ import 'dart:ui' show SemanticsFlags;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'semantics_tester.dart';
@@ -20,48 +21,56 @@ void main() {
     //     / \     C=node with checked
     //    C   C*   *=node removed next pass
     //
-    await tester.pumpWidget(
-      new Stack(
+    await tester.pumpWidget(new Directionality(
+      textDirection: TextDirection.ltr,
+      child: new Stack(
+        fit: StackFit.expand,
         children: <Widget>[
-          const Semantics(
-            label: 'L1'
+          new Semantics(
+            container: true,
+            label: 'L1',
           ),
           new Semantics(
             label: 'L2',
+            container: true,
             child: new Stack(
+              fit: StackFit.expand,
               children: <Widget>[
-                const Semantics(
-                  checked: true
+                new Semantics(
+                  checked: true,
                 ),
-                const Semantics(
-                  checked: false
-                )
-              ]
-            )
-          )
-        ]
-      )
-    );
+                new Semantics(
+                  checked: false,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ));
 
     expect(semantics, hasSemantics(
-      new TestSemantics(
-        id: 0,
+      new TestSemantics.root(
         children: <TestSemantics>[
-          new TestSemantics(
+          new TestSemantics.rootChild(
             id: 1,
             label: 'L1',
+            rect: TestSemantics.fullScreen,
           ),
-          new TestSemantics(
+          new TestSemantics.rootChild(
             id: 2,
             label: 'L2',
+            rect: TestSemantics.fullScreen,
             children: <TestSemantics>[
               new TestSemantics(
                 id: 3,
                 flags: SemanticsFlags.hasCheckedState.index | SemanticsFlags.isChecked.index,
+                rect: TestSemantics.fullScreen,
               ),
               new TestSemantics(
                 id: 4,
                 flags: SemanticsFlags.hasCheckedState.index,
+                rect: TestSemantics.fullScreen,
               ),
             ]
           ),
@@ -74,39 +83,45 @@ void main() {
     //  L* LC      C=node with checked
     //             *=node removed next pass
     //
-    await tester.pumpWidget(
-      new Stack(
+    await tester.pumpWidget(new Directionality(
+      textDirection: TextDirection.ltr,
+      child: new Stack(
+        fit: StackFit.expand,
         children: <Widget>[
-          const Semantics(
-            label: 'L1'
+          new Semantics(
+            label: 'L1',
+            container: true,
           ),
           new Semantics(
             label: 'L2',
+            container: true,
             child: new Stack(
+              fit: StackFit.expand,
               children: <Widget>[
-                const Semantics(
-                  checked: true
+                new Semantics(
+                  checked: true,
                 ),
-                const Semantics()
-              ]
-            )
-          )
-        ]
-      )
-    );
+                new Semantics(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ));
 
     expect(semantics, hasSemantics(
-      new TestSemantics(
-        id: 0,
+      new TestSemantics.root(
         children: <TestSemantics>[
-          new TestSemantics(
+          new TestSemantics.rootChild(
             id: 1,
             label: 'L1',
+            rect: TestSemantics.fullScreen,
           ),
-          new TestSemantics(
+          new TestSemantics.rootChild(
             id: 2,
             label: 'L2',
             flags: SemanticsFlags.hasCheckedState.index | SemanticsFlags.isChecked.index,
+            rect: TestSemantics.fullScreen,
           ),
         ],
       )
@@ -116,30 +131,39 @@ void main() {
     //    OLC      L=node with label
     //             C=node with checked
     //
-    await tester.pumpWidget(
-      new Stack(
+    await tester.pumpWidget(new Directionality(
+      textDirection: TextDirection.ltr,
+      child: new Stack(
+        fit: StackFit.expand,
         children: <Widget>[
-          const Semantics(),
+          new Semantics(),
           new Semantics(
             label: 'L2',
+            container: true,
             child: new Stack(
+              fit: StackFit.expand,
               children: <Widget>[
-                const Semantics(
-                  checked: true
+                new Semantics(
+                  checked: true,
                 ),
-                const Semantics()
-              ]
-            )
-          )
-        ]
-      )
-    );
+                new Semantics(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ));
 
     expect(semantics, hasSemantics(
-      new TestSemantics(
-        id: 0,
-        label: 'L2',
-        flags: SemanticsFlags.hasCheckedState.index | SemanticsFlags.isChecked.index,
+      new TestSemantics.root(
+        children: <TestSemantics>[
+          new TestSemantics.rootChild(
+            id: 2,
+            label: 'L2',
+            flags: SemanticsFlags.hasCheckedState.index | SemanticsFlags.isChecked.index,
+            rect: TestSemantics.fullScreen,
+          ),
+        ],
       )
     ));
 

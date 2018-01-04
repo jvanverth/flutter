@@ -9,6 +9,7 @@ import '../globals.dart';
 import 'file_system.dart';
 import 'io.dart';
 import 'process_manager.dart';
+import 'utils.dart';
 
 typedef String StringConverter(String string);
 
@@ -102,14 +103,13 @@ Future<Process> runCommand(List<String> cmd, {
   String workingDirectory,
   bool allowReentrantFlutter: false,
   Map<String, String> environment
-}) async {
+}) {
   _traceCommand(cmd, workingDirectory: workingDirectory);
-  final Process process = await processManager.start(
+  return processManager.start(
     cmd,
     workingDirectory: workingDirectory,
-    environment: _environment(allowReentrantFlutter, environment)
+    environment: _environment(allowReentrantFlutter, environment),
   );
-  return process;
 }
 
 /// This runs the command and streams stdout/stderr from the child process to
@@ -129,7 +129,7 @@ Future<int> runCommandAndStreamOutput(List<String> cmd, {
     allowReentrantFlutter: allowReentrantFlutter,
     environment: environment
   );
-  final StreamSubscription<String> subscription = process.stdout
+  final StreamSubscription<String> stdoutSubscription = process.stdout
     .transform(UTF8.decoder)
     .transform(const LineSplitter())
     .where((String line) => filter == null ? true : filter.hasMatch(line))
@@ -144,7 +144,7 @@ Future<int> runCommandAndStreamOutput(List<String> cmd, {
           printStatus(message);
       }
     });
-  process.stderr
+  final StreamSubscription<String> stderrSubscription = process.stderr
     .transform(UTF8.decoder)
     .transform(const LineSplitter())
     .where((String line) => filter == null ? true : filter.hasMatch(line))
@@ -157,9 +157,40 @@ Future<int> runCommandAndStreamOutput(List<String> cmd, {
 
   // Wait for stdout to be fully processed
   // because process.exitCode may complete first causing flaky tests.
-  await subscription.asFuture<Null>();
-  subscription.cancel();
+  await waitGroup<Null>(<Future<Null>>[
+    stdoutSubscription.asFuture<Null>(),
+    stderrSubscription.asFuture<Null>(),
+  ]);
 
+  await waitGroup<Null>(<Future<Null>>[
+    stdoutSubscription.cancel(),
+    stderrSubscription.cancel(),
+  ]);
+
+  return await process.exitCode;
+}
+
+/// Runs the [command] interactively, connecting the stdin/stdout/stderr
+/// streams of this process to those of the child process. Completes with
+/// the exit code of the child process.
+Future<int> runInteractively(List<String> command, {
+  String workingDirectory,
+  bool allowReentrantFlutter: false,
+  Map<String, String> environment
+}) async {
+  final Process process = await runCommand(
+    command,
+    workingDirectory: workingDirectory,
+    allowReentrantFlutter: allowReentrantFlutter,
+    environment: environment,
+  );
+  process.stdin.addStream(stdin);
+  // Wait for stdout and stderr to be fully processed, because process.exitCode
+  // may complete first.
+  Future.wait<dynamic>(<Future<dynamic>>[
+    stdout.addStream(process.stdout),
+    stderr.addStream(process.stderr),
+  ]);
   return await process.exitCode;
 }
 
@@ -208,7 +239,7 @@ Future<RunResult> runCheckedAsync(List<String> cmd, {
       environment: environment
   );
   if (result.exitCode != 0)
-    throw 'Exit code ${result.exitCode} from: ${cmd.join(' ')}';
+    throw 'Exit code ${result.exitCode} from: ${cmd.join(' ')}:\n$result';
   return result;
 }
 
@@ -216,6 +247,15 @@ bool exitsHappy(List<String> cli) {
   _traceCommand(cli);
   try {
     return processManager.runSync(cli).exitCode == 0;
+  } catch (error) {
+    return false;
+  }
+}
+
+Future<bool> exitsHappyAsync(List<String> cli) async {
+  _traceCommand(cli);
+  try {
+    return (await processManager.run(cli)).exitCode == 0;
   } catch (error) {
     return false;
   }
@@ -241,16 +281,6 @@ String runCheckedSync(List<String> cmd, {
   );
 }
 
-/// Run cmd and return stdout on success.
-///
-/// Throws the standard error output if cmd exits with a non-zero value.
-String runSyncAndThrowStdErrOnError(List<String> cmd) {
-  return _runWithLoggingSync(cmd,
-                             checked: true,
-                             throwStandardErrorOnError: true,
-                             hideStdout: true);
-}
-
 /// Run cmd and return stdout.
 String runSync(List<String> cmd, {
   String workingDirectory,
@@ -268,7 +298,7 @@ void _traceCommand(List<String> args, { String workingDirectory }) {
   if (workingDirectory == null)
     printTrace(argsText);
   else
-    printTrace("[$workingDirectory${fs.path.separator}] $argsText");
+    printTrace('[$workingDirectory${fs.path.separator}] $argsText');
 }
 
 String _runWithLoggingSync(List<String> cmd, {

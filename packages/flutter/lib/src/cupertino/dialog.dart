@@ -2,27 +2,30 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+
+import 'colors.dart';
 
 // TODO(abarth): These constants probably belong somewhere more general.
 
 const TextStyle _kCupertinoDialogTitleStyle = const TextStyle(
   fontFamily: '.SF UI Display',
   inherit: false,
-  fontSize:  17.0,
+  fontSize:  17.5,
   fontWeight: FontWeight.w600,
-  color: const Color(0xFF000000),
-  height: 1.35,
+  color: CupertinoColors.black,
+  height: 1.25,
   textBaseline: TextBaseline.alphabetic,
 );
 
 const TextStyle _kCupertinoDialogContentStyle = const TextStyle(
   fontFamily: '.SF UI Text',
   inherit: false,
-  fontSize:  12.0,
-  fontWeight: FontWeight.w400,
-  color: const Color(0xFF000000),
+  fontSize:  12.4,
+  fontWeight: FontWeight.w500,
+  color: CupertinoColors.black,
   height: 1.35,
   textBaseline: TextBaseline.alphabetic,
 );
@@ -30,18 +33,18 @@ const TextStyle _kCupertinoDialogContentStyle = const TextStyle(
 const TextStyle _kCupertinoDialogActionStyle = const TextStyle(
   fontFamily: '.SF UI Text',
   inherit: false,
-  fontSize:  16.0,
+  fontSize:  16.8,
   fontWeight: FontWeight.w400,
-  color: const Color(0xFF027AFF),
+  color: CupertinoColors.activeBlue,
   textBaseline: TextBaseline.alphabetic,
 );
 
 const double _kCupertinoDialogWidth = 270.0;
-const BoxDecoration _kCupertinoDialogDecoration = const BoxDecoration(
-  // TODO(abarth): Rather than being opaque, this decoration should actually be
-  // partially transparent and have a subtle background blur effect.
-  backgroundColor: const Color(0xFFF8F8F8),
-  borderRadius: const BorderRadius.all(const Radius.circular(15.0)),
+const BoxDecoration _kCupertinoDialogFrontFillDecoration = const BoxDecoration(
+  color: const Color(0xCCFFFFFF),
+);
+const BoxDecoration _kCupertinoDialogBackFill = const BoxDecoration(
+  color: const Color(0x77FFFFFFF),
 );
 
 /// An iOS-style dialog.
@@ -50,14 +53,17 @@ const BoxDecoration _kCupertinoDialogDecoration = const BoxDecoration(
 /// dialog. Rather than using this widget directly, consider using
 /// [CupertinoAlertDialog], which implement a specific kind of dialog.
 ///
+/// Push with `Navigator.of(..., rootNavigator: true)` when using with
+/// [CupertinoTabScaffold] to ensure that the dialog appears above the tabs.
+///
 /// See also:
 ///
 ///  * [CupertinoAlertDialog], which is a dialog with title, contents, and
 ///    actions.
-///  * <https://developer.apple.com/ios/human-interface-guidelines/ui-views/alerts/>
+///  * <https://developer.apple.com/ios/human-interface-guidelines/views/alerts/>
 class CupertinoDialog extends StatelessWidget {
   /// Creates an iOS-style dialog.
-  CupertinoDialog({
+  const CupertinoDialog({
     Key key,
     this.child,
   }) : super(key: key);
@@ -68,11 +74,22 @@ class CupertinoDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return new Center(
-      child: new Container(
-        margin: const EdgeInsets.all(10.0),
-        width: _kCupertinoDialogWidth,
-        decoration: _kCupertinoDialogDecoration,
-        child: child,
+      child: new ClipRRect(
+        borderRadius: const BorderRadius.all(const Radius.circular(12.0)),
+        child: new DecoratedBox(
+          // To get the effect, 2 white fills are needed. One blended with the
+          // background before applying the blur and one overlayed on top of
+          // the blur.
+          decoration: _kCupertinoDialogBackFill,
+          child: new BackdropFilter(
+            filter: new ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+            child: new Container(
+              width: _kCupertinoDialogWidth,
+              decoration: _kCupertinoDialogFrontFillDecoration,
+              child: child,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -91,10 +108,10 @@ class CupertinoDialog extends StatelessWidget {
 /// See also:
 ///
 ///  * [CupertinoDialog], which is a generic iOS-style dialog.
-///  * <https://developer.apple.com/ios/human-interface-guidelines/ui-views/alerts/>
+///  * <https://developer.apple.com/ios/human-interface-guidelines/views/alerts/>
 class CupertinoAlertDialog extends StatelessWidget {
   /// Creates an iOS-style alert dialog.
-  CupertinoAlertDialog({
+  const CupertinoAlertDialog({
     Key key,
     this.title,
     this.content,
@@ -123,11 +140,11 @@ class CupertinoAlertDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<Widget> children = <Widget>[];
 
-    children.add(const SizedBox(height: 20.0));
+    children.add(const SizedBox(height: 18.0));
 
     if (title != null) {
       children.add(new Padding(
-        padding: const EdgeInsets.only(left: 20.0, right: 20.0, bottom: 12.0),
+        padding: const EdgeInsets.only(left: 20.0, right: 20.0, bottom: 2.0),
         child: new DefaultTextStyle(
           style: _kCupertinoDialogTitleStyle,
           textAlign: TextAlign.center,
@@ -150,7 +167,7 @@ class CupertinoAlertDialog extends StatelessWidget {
       ));
     }
 
-    children.add(const SizedBox(height: 20.0));
+    children.add(const SizedBox(height: 22.0));
 
     if (actions != null) {
       children.add(new _CupertinoButtonBar(
@@ -168,32 +185,36 @@ class CupertinoAlertDialog extends StatelessWidget {
   }
 }
 
-const Color _kDestructiveActionColor = const Color(0xFFFF3B30);
 
 /// A button typically used in a [CupertinoAlertDialog].
 ///
 /// See also:
 ///
-///  * [CupertinoAlertDialog]
+///  * [CupertinoAlertDialog], a dialog that informs the user about situations
+///    that require acknowledgement
 class CupertinoDialogAction extends StatelessWidget {
   /// Creates an action for an iOS-style dialog.
-  CupertinoDialogAction({
+  const CupertinoDialogAction({
     this.onPressed,
-    this.isDestructive: false,
+    this.isDefaultAction: false,
+    this.isDestructiveAction: false,
     @required this.child,
-  }) {
-    assert(child != null);
-  }
+  }) : assert(child != null);
 
   /// The callback that is called when the button is tapped or otherwise activated.
   ///
   /// If this is set to null, the button will be disabled.
   final VoidCallback onPressed;
 
+  /// Set to true if button is the default choice in the dialog.
+  ///
+  /// Default buttons are bolded.
+  final bool isDefaultAction;
+
   /// Whether this action destroys an object.
   ///
   /// For example, an action that deletes an email is destructive.
-  final bool isDestructive;
+  final bool isDestructiveAction;
 
   /// The widget below this widget in the tree.
   ///
@@ -208,14 +229,18 @@ class CupertinoDialogAction extends StatelessWidget {
   Widget build(BuildContext context) {
     TextStyle style = _kCupertinoDialogActionStyle;
 
-    if (isDestructive)
-      style = style.copyWith(color: _kDestructiveActionColor);
+    if (isDefaultAction)
+      style = style.copyWith(fontWeight: FontWeight.w600);
+
+    if (isDestructiveAction)
+      style = style.copyWith(color: CupertinoColors.destructiveRed);
 
     if (!enabled)
       style = style.copyWith(color: style.color.withOpacity(0.5));
 
     return new GestureDetector(
       onTap: onPressed,
+      behavior: HitTestBehavior.opaque,
       child: new Center(
         child: new DefaultTextStyle(
           style: style,
@@ -233,7 +258,7 @@ const double _kButtonBarHeight = 45.0;
 const Color _kButtonDividerColor = const Color(0xFFD5D5D5);
 
 class _CupertinoButtonBar extends StatelessWidget {
-  _CupertinoButtonBar({
+  const _CupertinoButtonBar({
     Key key,
     this.children,
   }) : super(key: key);

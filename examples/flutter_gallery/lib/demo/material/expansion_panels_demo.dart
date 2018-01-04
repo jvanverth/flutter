@@ -14,7 +14,7 @@ typedef Widget DemoItemBodyBuilder<T>(DemoItem<T> item);
 typedef String ValueToString<T>(T value);
 
 class DualHeaderWithHint extends StatelessWidget {
-  DualHeaderWithHint({
+  const DualHeaderWithHint({
     this.name,
     this.value,
     this.hint,
@@ -51,7 +51,7 @@ class DualHeaderWithHint extends StatelessWidget {
             margin: const EdgeInsets.only(left: 24.0),
             child: new FittedBox(
               fit: BoxFit.scaleDown,
-              alignment: FractionalOffset.centerLeft,
+              alignment: Alignment.centerLeft,
               child: new Text(
                 name,
                 style: textTheme.body1.copyWith(fontSize: 15.0),
@@ -76,7 +76,7 @@ class DualHeaderWithHint extends StatelessWidget {
 }
 
 class CollapsibleBody extends StatelessWidget {
-  CollapsibleBody({
+  const CollapsibleBody({
     this.margin: EdgeInsets.zero,
     this.child,
     this.onSave,
@@ -108,7 +108,7 @@ class CollapsibleBody extends StatelessWidget {
             )
           )
         ),
-        new Divider(height: 1.0),
+        const Divider(height: 1.0),
         new Container(
           padding: const EdgeInsets.symmetric(vertical: 16.0),
           child: new Row(
@@ -225,7 +225,7 @@ class _ExpansionPanelsDemoState extends State<ExpasionPanelsDemo> {
         name: 'Location',
         value: _Location.Bahamas,
         hint: 'Select location',
-        valueToString: (_Location location) => location.toString().split(".")[1],
+        valueToString: (_Location location) => location.toString().split('.')[1],
         builder: (DemoItem<_Location> item) {
           void close() {
             setState(() {
@@ -336,24 +336,28 @@ class _ExpansionPanelsDemoState extends State<ExpasionPanelsDemo> {
     return new Scaffold(
       appBar: new AppBar(title: const Text('Expansion panels')),
       body: new SingleChildScrollView(
-        child: new Container(
-          margin: const EdgeInsets.all(24.0),
-          child: new ExpansionPanelList(
-            expansionCallback: (int index, bool isExpanded) {
-              setState(() {
-                _demoItems[index].isExpanded = !isExpanded;
-              });
-            },
-            children: _demoItems.map((DemoItem<dynamic> item) {
-              return new ExpansionPanel(
-                isExpanded: item.isExpanded,
-                headerBuilder: item.headerBuilder,
-                body: item.builder(item)
-              );
-            }).toList()
-          )
-        )
-      )
+        child: new SafeArea(
+          top: false,
+          bottom: false,
+          child: new Container(
+            margin: const EdgeInsets.all(24.0),
+            child: new ExpansionPanelList(
+              expansionCallback: (int index, bool isExpanded) {
+                setState(() {
+                  _demoItems[index].isExpanded = !isExpanded;
+                });
+              },
+              children: _demoItems.map((DemoItem<dynamic> item) {
+                return new ExpansionPanel(
+                  isExpanded: item.isExpanded,
+                  headerBuilder: item.headerBuilder,
+                  body: item.builder(item)
+                );
+              }).toList()
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -7,7 +7,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import 'constants.dart';
-import 'shadows.dart';
 import 'theme.dart';
 
 /// Signature for the callback used by ink effects to obtain the rectangle for the effect.
@@ -98,8 +97,8 @@ abstract class MaterialInkController {
 /// splashes and ink highlights) won't move to account for the new layout.
 ///
 /// In general, the features of a [Material] should not change over time (e.g. a
-/// [Material] should not change its [color] or [type]). The one exception is
-/// the [elevation], changes to which will be animated.
+/// [Material] should not change its [color], [shadowColor] or [type]). The one
+/// exception is the [elevation], changes to which will be animated.
 ///
 /// See also:
 ///
@@ -109,22 +108,25 @@ abstract class MaterialInkController {
 class Material extends StatefulWidget {
   /// Creates a piece of material.
   ///
-  /// The [type] and the [elevation] arguments must not be null.
-  Material({
+  /// The [type], [elevation] and [shadowColor] arguments must not be null.
+  const Material({
     Key key,
     this.type: MaterialType.canvas,
-    this.elevation: 0,
+    this.elevation: 0.0,
     this.color,
+    this.shadowColor: const Color(0xFF000000),
     this.textStyle,
     this.borderRadius,
     this.child,
-  }) : super(key: key) {
-    assert(type != null);
-    assert(elevation != null);
-    assert(type != MaterialType.circle || borderRadius == null);
-  }
+  }) : assert(type != null),
+       assert(elevation != null),
+       assert(shadowColor != null),
+       assert(!(identical(type, MaterialType.circle) && borderRadius != null)),
+       super(key: key);
 
   /// The widget below this widget in the tree.
+  ///
+  /// {@macro flutter.widgets.child}
   final Widget child;
 
   /// The kind of material to show (e.g., card or canvas). This
@@ -132,12 +134,15 @@ class Material extends StatefulWidget {
   /// the shape is rectangular, and the default color.
   final MaterialType type;
 
-  /// The z-coordinate at which to place this material.
+  /// The z-coordinate at which to place this material. This controls the size
+  /// of the shadow below the material.
   ///
-  /// The following elevations have defined shadows: 1, 2, 3, 4, 6, 8, 9, 12, 16, 24
+  /// If this is non-zero, the contents of the card are clipped, because the
+  /// widget conceptually defines an independent printed piece of material.
   ///
-  /// Defaults to 0.
-  final int elevation;
+  /// Defaults to 0. Changing this value will cause the shadow to animate over
+  /// [kThemeChangeDuration].
+  final double elevation;
 
   /// The color to paint the material.
   ///
@@ -146,6 +151,11 @@ class Material extends StatefulWidget {
   ///
   /// By default, the color is derived from the [type] of material.
   final Color color;
+
+  /// The color to paint the shadow below the material.
+  ///
+  /// Defaults to fully opaque black.
+  final Color shadowColor;
 
   /// The typographical style to use for text within this material.
   final TextStyle textStyle;
@@ -174,25 +184,18 @@ class Material extends StatefulWidget {
   _MaterialState createState() => new _MaterialState();
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('$type');
-    description.add('elevation: $elevation');
-    if (color != null)
-      description.add('color: $color');
-    if (textStyle != null) {
-      for (String entry in '$textStyle'.split('\n'))
-        description.add('textStyle.$entry');
-    }
-    if (borderRadius != null)
-      description.add('borderRadius: $borderRadius');
+  void debugFillProperties(DiagnosticPropertiesBuilder description) {
+    super.debugFillProperties(description);
+    description.add(new EnumProperty<MaterialType>('type', type));
+    description.add(new DoubleProperty('elevation', elevation, defaultValue: 0.0));
+    description.add(new DiagnosticsProperty<Color>('color', color, defaultValue: null));
+    description.add(new DiagnosticsProperty<Color>('shadowColor', shadowColor, defaultValue: const Color(0xFF000000)));
+    textStyle?.debugFillProperties(description, prefix: 'textStyle.');
+    description.add(new EnumProperty<BorderRadius>('borderRadius', borderRadius, defaultValue: null));
   }
 
   /// The default radius of an ink splash in logical pixels.
   static const double defaultSplashRadius = 35.0;
-
-  // Temporary flag used to enable the PhysicalModel shadow implementation.
-  static bool debugEnablePhysicalModel = false;
 }
 
 class _MaterialState extends State<Material> with TickerProviderStateMixin {
@@ -238,73 +241,51 @@ class _MaterialState extends State<Material> with TickerProviderStateMixin {
       )
     );
 
-    if (Material.debugEnablePhysicalModel) {
-      if (widget.type == MaterialType.circle) {
-        contents = new PhysicalModel(
-          shape: BoxShape.circle,
-          elevation: widget.elevation,
-          color: backgroundColor,
-          child: contents,
-        );
-      } else if (widget.type == MaterialType.transparency) {
-        if (radius == null) {
-          contents = new ClipRect(child: contents);
-        } else {
-          contents = new ClipRRect(
-            borderRadius: radius,
-            child: contents
-          );
-        }
+    if (widget.type == MaterialType.circle) {
+      contents = new AnimatedPhysicalModel(
+        curve: Curves.fastOutSlowIn,
+        duration: kThemeChangeDuration,
+        shape: BoxShape.circle,
+        elevation: widget.elevation,
+        color: backgroundColor,
+        shadowColor: widget.shadowColor,
+        animateColor: false,
+        child: contents,
+      );
+    } else if (widget.type == MaterialType.transparency) {
+      if (radius == null) {
+        contents = new ClipRect(child: contents);
       } else {
-        contents = new PhysicalModel(
-          shape: BoxShape.rectangle,
-          borderRadius: radius ?? BorderRadius.zero,
-          elevation: widget.elevation,
-          color: backgroundColor,
-          child: contents,
-        );
-      }
-    } else {
-      if (widget.type == MaterialType.circle) {
-        contents = new ClipOval(child: contents);
-      } else if (kMaterialEdges[widget.type] != null) {
         contents = new ClipRRect(
           borderRadius: radius,
           child: contents
         );
       }
-    }
-
-    if (widget.type != MaterialType.transparency) {
-      contents = new AnimatedContainer(
+    } else {
+      contents = new AnimatedPhysicalModel(
         curve: Curves.fastOutSlowIn,
         duration: kThemeChangeDuration,
-        decoration: new BoxDecoration(
-          borderRadius: radius,
-          boxShadow: widget.elevation == 0 || Material.debugEnablePhysicalModel ?
-              null : kElevationToShadow[widget.elevation],
-          shape: widget.type == MaterialType.circle ? BoxShape.circle : BoxShape.rectangle
-        ),
-        child: new Container(
-          decoration: new BoxDecoration(
-            borderRadius: radius,
-            backgroundColor: backgroundColor,
-            shape: widget.type == MaterialType.circle ? BoxShape.circle : BoxShape.rectangle
-          ),
-          child: contents
-        )
+        shape: BoxShape.rectangle,
+        borderRadius: radius ?? BorderRadius.zero,
+        elevation: widget.elevation,
+        color: backgroundColor,
+        shadowColor: widget.shadowColor,
+        animateColor: false,
+        child: contents,
       );
     }
+
     return contents;
   }
 }
 
-const Duration _kHighlightFadeDuration = const Duration(milliseconds: 200);
-
 class _RenderInkFeatures extends RenderProxyBox implements MaterialInkController {
-  _RenderInkFeatures({ RenderBox child, @required this.vsync, this.color }) : super(child) {
-    assert(vsync != null);
-  }
+  _RenderInkFeatures({
+    RenderBox child,
+    @required this.vsync,
+    this.color,
+  }) : assert(vsync != null),
+       super(child);
 
   // This class should exist in a 1:1 relationship with a MaterialState object,
   // since there's no current support for dynamically changing the ticker
@@ -318,24 +299,26 @@ class _RenderInkFeatures extends RenderProxyBox implements MaterialInkController
   @override
   Color color;
 
-  final List<InkFeature> _inkFeatures = <InkFeature>[];
+  List<InkFeature> _inkFeatures;
 
   @override
   void addInkFeature(InkFeature feature) {
     assert(!feature._debugDisposed);
     assert(feature._controller == this);
+    _inkFeatures ??= <InkFeature>[];
     assert(!_inkFeatures.contains(feature));
     _inkFeatures.add(feature);
     markNeedsPaint();
   }
 
   void _removeFeature(InkFeature feature) {
+    assert(_inkFeatures != null);
     _inkFeatures.remove(feature);
     markNeedsPaint();
   }
 
   void _didChangeLayout() {
-    if (_inkFeatures.isNotEmpty)
+    if (_inkFeatures != null && _inkFeatures.isNotEmpty)
       markNeedsPaint();
   }
 
@@ -344,7 +327,7 @@ class _RenderInkFeatures extends RenderProxyBox implements MaterialInkController
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    if (_inkFeatures.isNotEmpty) {
+    if (_inkFeatures != null && _inkFeatures.isNotEmpty) {
       final Canvas canvas = context.canvas;
       canvas.save();
       canvas.translate(offset.dx, offset.dy);
@@ -358,7 +341,12 @@ class _RenderInkFeatures extends RenderProxyBox implements MaterialInkController
 }
 
 class _InkFeatures extends SingleChildRenderObjectWidget {
-  _InkFeatures({ Key key, this.color, Widget child, @required this.vsync }) : super(key: key, child: child);
+  const _InkFeatures({
+    Key key,
+    this.color,
+    @required this.vsync,
+    Widget child,
+  }) : super(key: key, child: child);
 
   // This widget must be owned by a MaterialState, which must be provided as the vsync.
   // This relationship must be 1:1 and cannot change for the lifetime of the MaterialState.
@@ -371,7 +359,7 @@ class _InkFeatures extends SingleChildRenderObjectWidget {
   _RenderInkFeatures createRenderObject(BuildContext context) {
     return new _RenderInkFeatures(
       color: color,
-      vsync: vsync
+      vsync: vsync,
     );
   }
 
@@ -392,11 +380,10 @@ abstract class InkFeature {
   InkFeature({
     @required MaterialInkController controller,
     @required this.referenceBox,
-    this.onRemoved
-  }) : _controller = controller {
-    assert(_controller != null);
-    assert(referenceBox != null);
-  }
+    this.onRemoved,
+  }) : assert(controller != null),
+       assert(referenceBox != null),
+       _controller = controller;
 
   /// The [MaterialInkController] associated with this [InkFeature].
   ///
@@ -417,7 +404,7 @@ abstract class InkFeature {
   @mustCallSuper
   void dispose() {
     assert(!_debugDisposed);
-    assert(() { _debugDisposed = true; return true; });
+    assert(() { _debugDisposed = true; return true; }());
     _controller._removeFeature(this);
     if (onRemoved != null)
       onRemoved();
@@ -445,10 +432,10 @@ abstract class InkFeature {
   /// Override this method to paint the ink feature.
   ///
   /// The transform argument gives the coordinate conversion from the coordinate
-  /// system of the canvas to the coodinate system of the [referenceBox].
+  /// system of the canvas to the coordinate system of the [referenceBox].
   @protected
   void paintFeature(Canvas canvas, Matrix4 transform);
 
   @override
-  String toString() => '$runtimeType#$hashCode';
+  String toString() => describeIdentity(this);
 }

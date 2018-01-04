@@ -7,7 +7,6 @@ import 'package:flutter/widgets.dart';
 
 import 'colors.dart';
 import 'debug.dart';
-import 'icon.dart';
 import 'icon_button.dart';
 import 'icons.dart';
 import 'theme.dart';
@@ -21,17 +20,16 @@ import 'theme.dart';
 class ExpandIcon extends StatefulWidget {
   /// Creates an [ExpandIcon] with the given padding, and a callback that is
   /// triggered when the icon is pressed.
-  ExpandIcon({
+  const ExpandIcon({
     Key key,
     this.isExpanded: false,
     this.size: 24.0,
     @required this.onPressed,
     this.padding: const EdgeInsets.all(8.0)
-  }) : super(key: key) {
-    assert(isExpanded != null);
-    assert(size != null);
-    assert(padding != null);
-  }
+  }) : assert(isExpanded != null),
+       assert(size != null),
+       assert(padding != null),
+       super(key: key);
 
   /// Whether the icon is in an expanded state.
   ///
@@ -50,11 +48,11 @@ class ExpandIcon extends StatefulWidget {
   /// If this is set to null, the button will be disabled.
   final ValueChanged<bool> onPressed;
 
-  /// The padding around the icon. The entire padded icon will reactb to input
+  /// The padding around the icon. The entire padded icon will react to input
   /// gestures.
   ///
   /// This property must not be null. It defaults to 8.0 padding on all sides.
-  final EdgeInsets padding;
+  final EdgeInsetsGeometry padding;
 
   @override
   _ExpandIconState createState() => new _ExpandIconState();
@@ -84,6 +82,7 @@ class _ExpandIconState extends State<ExpandIcon> with SingleTickerProviderStateM
 
   @override
   void didUpdateWidget(ExpandIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
     if (widget.isExpanded != oldWidget.isExpanded) {
       if (widget.isExpanded) {
         _controller.forward();

@@ -3,15 +3,13 @@
 // found in the LICENSE file.
 
 import 'dart:async';
-import 'dart:convert' show ASCII, LineSplitter;
+import 'dart:convert' show LineSplitter;
 
 import 'package:meta/meta.dart';
 
 import 'io.dart';
-import 'platform.dart';
+import 'terminal.dart';
 import 'utils.dart';
-
-final AnsiTerminal terminal = new AnsiTerminal();
 
 abstract class Logger {
   bool get isVerbose => false;
@@ -25,7 +23,7 @@ abstract class Logger {
 
   /// Display an error level message to the user. Commands should use this if they
   /// fail in some way.
-  void printError(String message, [StackTrace stackTrace]);
+  void printError(String message, { StackTrace stackTrace, bool emphasis: false });
 
   /// Display normal output of the command. This should be used for things like
   /// progress messages, success messages, or just normal command output.
@@ -60,10 +58,12 @@ class StdoutLogger extends Logger {
   bool get isVerbose => false;
 
   @override
-  void printError(String message, [StackTrace stackTrace]) {
+  void printError(String message, { StackTrace stackTrace, bool emphasis: false }) {
     _status?.cancel();
     _status = null;
 
+    if (emphasis)
+      message = terminal.bolden(message);
     stderr.writeln(message);
     if (stackTrace != null)
       stderr.writeln(stackTrace.toString());
@@ -144,7 +144,9 @@ class BufferLogger extends Logger {
   String get traceText => _trace.toString();
 
   @override
-  void printError(String message, [StackTrace stackTrace]) => _error.writeln(message);
+  void printError(String message, { StackTrace stackTrace, bool emphasis: false }) {
+    _error.writeln(message);
+  }
 
   @override
   void printStatus(
@@ -175,17 +177,20 @@ class BufferLogger extends Logger {
 }
 
 class VerboseLogger extends Logger {
-  Stopwatch stopwatch = new Stopwatch();
-
-  VerboseLogger() {
+  VerboseLogger(this.parent)
+    : assert(terminal != null) {
     stopwatch.start();
   }
+
+  final Logger parent;
+
+  Stopwatch stopwatch = new Stopwatch();
 
   @override
   bool get isVerbose => true;
 
   @override
-  void printError(String message, [StackTrace stackTrace]) {
+  void printError(String message, { StackTrace stackTrace, bool emphasis: false }) {
     _emit(_LogType.error, message, stackTrace);
   }
 
@@ -230,13 +235,13 @@ class VerboseLogger extends Logger {
     final String indentMessage = message.replaceAll('\n', '\n$indent');
 
     if (type == _LogType.error) {
-      stderr.writeln(prefix + terminal.bolden(indentMessage));
+      parent.printError(prefix + terminal.bolden(indentMessage));
       if (stackTrace != null)
-        stderr.writeln(indent + stackTrace.toString().replaceAll('\n', '\n$indent'));
+        parent.printError(indent + stackTrace.toString().replaceAll('\n', '\n$indent'));
     } else if (type == _LogType.status) {
-      print(prefix + terminal.bolden(indentMessage));
+      parent.printStatus(prefix + terminal.bolden(indentMessage));
     } else {
-      print(prefix + indentMessage);
+      parent.printStatus(prefix + indentMessage);
     }
   }
 }
@@ -245,68 +250,6 @@ enum _LogType {
   error,
   status,
   trace
-}
-
-class AnsiTerminal {
-  static const String _bold  = '\u001B[1m';
-  static const String _reset = '\u001B[0m';
-  static const String _clear = '\u001B[2J\u001B[H';
-
-  static const int _ENXIO = 6;
-  static const int _ENOTTY = 25;
-  static const int _ENETRESET = 102;
-  static const int _INVALID_HANDLE = 6;
-
-  /// Setting the line mode can throw for some terminals (with "Operation not
-  /// supported on socket"), but the error can be safely ignored.
-  static const List<int> _lineModeIgnorableErrors = const <int>[
-    _ENXIO,
-    _ENOTTY,
-    _ENETRESET,
-    _INVALID_HANDLE,
-  ];
-
-  bool supportsColor = platform.stdoutSupportsAnsi;
-
-  String bolden(String message) {
-    if (!supportsColor)
-      return message;
-    final StringBuffer buffer = new StringBuffer();
-    for (String line in message.split('\n'))
-      buffer.writeln('$_bold$line$_reset');
-    final String result = buffer.toString();
-    // avoid introducing a new newline to the emboldened text
-    return (!message.endsWith('\n') && result.endsWith('\n'))
-        ? result.substring(0, result.length - 1)
-        : result;
-  }
-
-  String clearScreen() => supportsColor ? _clear : '\n\n';
-
-  set singleCharMode(bool value) {
-    // TODO(goderbauer): instead of trying to set lineMode and then catching
-    // [_ENOTTY] or [_INVALID_HANDLE], we should check beforehand if stdin is
-    // connected to a terminal or not.
-    // (Requires https://github.com/dart-lang/sdk/issues/29083 to be resolved.)
-    try {
-      // The order of setting lineMode and echoMode is important on Windows.
-      if (value) {
-        stdin.echoMode = false;
-        stdin.lineMode = false;
-      } else {
-        stdin.lineMode = true;
-        stdin.echoMode = true;
-      }
-    } on StdinException catch (error) {
-      if (!_lineModeIgnorableErrors.contains(error.osError?.errorCode))
-        rethrow;
-    }
-  }
-
-  /// Return keystrokes from the console.
-  ///
-  /// Useful when the console is in [singleCharMode].
-  Stream<String> get onCharInput => stdin.transform(ASCII.decoder);
 }
 
 class _AnsiStatus extends Status {

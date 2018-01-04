@@ -16,12 +16,11 @@ import '../common.dart';
 const Duration kBenchmarkTime = const Duration(seconds: 15);
 
 Future<Null> main() async {
-  stock_data.StockDataFetcher.actuallyFetchData = false;
+  stock_data.StockData.actuallyFetchData = false;
 
-  // This allows us to call onBeginFrame even when the engine didn't request it,
-  // and have it actually do something:
+  // We control the framePolicy below to prevent us from scheduling frames in
+  // the engine, so that the engine does not interfere with our timings.
   final LiveTestWidgetsFlutterBinding binding = TestWidgetsFlutterBinding.ensureInitialized();
-  binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
   final Stopwatch watch = new Stopwatch();
   int iterations = 0;
@@ -37,6 +36,7 @@ Future<Null> main() async {
     final TestViewConfiguration big = new TestViewConfiguration(size: const Size(360.0, 640.0));
     final TestViewConfiguration small = new TestViewConfiguration(size: const Size(355.0, 635.0));
     final RenderView renderView = WidgetsBinding.instance.renderView;
+    binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
     watch.start();
     while (watch.elapsed < kBenchmarkTime) {
@@ -45,7 +45,11 @@ Future<Null> main() async {
       // artificially high load to find out how much CPU each frame takes.
       // This differs from normal benchmarks which might look at how many
       // frames are missed, etc.
-      ui.window.onBeginFrame(new Duration(milliseconds: iterations * 16));
+      // We use Timer.run to ensure there's a microtask flush in between
+      // the two calls below.
+      Timer.run(() { ui.window.onBeginFrame(new Duration(milliseconds: iterations * 16)); });
+      Timer.run(() { ui.window.onDrawFrame(); });
+      await tester.idle(); // wait until the frame has run (also uses Timer.run)
       iterations += 1;
     }
     watch.stop();

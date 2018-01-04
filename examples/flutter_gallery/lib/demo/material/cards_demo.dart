@@ -5,10 +5,18 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+const String _kGalleryAssetsPackage = 'flutter_gallery_assets';
+
 class TravelDestination {
-  const TravelDestination({ this.assetName, this.title, this.description });
+  const TravelDestination({
+    this.assetName,
+    this.assetPackage,
+    this.title,
+    this.description,
+  });
 
   final String assetName;
+  final String assetPackage;
   final String title;
   final List<String> description;
 
@@ -17,7 +25,8 @@ class TravelDestination {
 
 final List<TravelDestination> destinations = <TravelDestination>[
   const TravelDestination(
-    assetName: 'packages/flutter_gallery_assets/top_10_australian_beaches.jpg',
+    assetName: 'top_10_australian_beaches.jpg',
+    assetPackage: _kGalleryAssetsPackage,
     title: 'Top 10 Australian beaches',
     description: const <String>[
       'Number 10',
@@ -26,7 +35,8 @@ final List<TravelDestination> destinations = <TravelDestination>[
     ],
   ),
   const TravelDestination(
-    assetName: 'packages/flutter_gallery_assets/kangaroo_valley_safari.jpg',
+    assetName: 'kangaroo_valley_safari.jpg',
+    assetPackage: _kGalleryAssetsPackage,
     title: 'Kangaroo Valley Safari',
     description: const <String>[
       '2031 Moss Vale Road',
@@ -37,9 +47,9 @@ final List<TravelDestination> destinations = <TravelDestination>[
 ];
 
 class TravelDestinationItem extends StatelessWidget {
-  TravelDestinationItem({ Key key, @required this.destination }) : super(key: key) {
-    assert(destination != null && destination.isValid);
-  }
+  TravelDestinationItem({ Key key, @required this.destination })
+    : assert(destination != null && destination.isValid),
+      super(key: key);
 
   static final double height = 366.0;
   final TravelDestination destination;
@@ -50,85 +60,89 @@ class TravelDestinationItem extends StatelessWidget {
     final TextStyle titleStyle = theme.textTheme.headline.copyWith(color: Colors.white);
     final TextStyle descriptionStyle = theme.textTheme.subhead;
 
-    return new Container(
-      padding: const EdgeInsets.all(8.0),
-      height: height,
-      child: new Card(
-        child: new Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // photo and title
-            new SizedBox(
-              height: 184.0,
-              child: new Stack(
-                children: <Widget>[
-                  new Positioned.fill(
-                    child: new Image.asset(
-                      destination.assetName,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  new Positioned(
-                    bottom: 16.0,
-                    left: 16.0,
-                    right: 16.0,
-                    child: new FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: FractionalOffset.centerLeft,
-                      child: new Text(destination.title,
-                        style: titleStyle,
+    return new SafeArea(
+      top: false,
+      bottom: false,
+      child: new Container(
+        padding: const EdgeInsets.all(8.0),
+        height: height,
+        child: new Card(
+          child: new Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // photo and title
+              new SizedBox(
+                height: 184.0,
+                child: new Stack(
+                  children: <Widget>[
+                    new Positioned.fill(
+                      child: new Image.asset(
+                        destination.assetName,
+                        package: destination.assetPackage,
+                        fit: BoxFit.cover,
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            // description and share/expore buttons
-            new Expanded(
-              child: new Padding(
-                padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0.0),
-                child: new DefaultTextStyle(
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                  style: descriptionStyle,
-                  child: new Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      // three line description
-                      new Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: new Text(
-                          destination.description[0],
-                          style: descriptionStyle.copyWith(color: Colors.black54),
+                    new Positioned(
+                      bottom: 16.0,
+                      left: 16.0,
+                      right: 16.0,
+                      child: new FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: new Text(destination.title,
+                          style: titleStyle,
                         ),
                       ),
-                      new Text(destination.description[1]),
-                      new Text(destination.description[2]),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              // description and share/expore buttons
+              new Expanded(
+                child: new Padding(
+                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0.0),
+                  child: new DefaultTextStyle(
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: descriptionStyle,
+                    child: new Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        // three line description
+                        new Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: new Text(
+                            destination.description[0],
+                            style: descriptionStyle.copyWith(color: Colors.black54),
+                          ),
+                        ),
+                        new Text(destination.description[1]),
+                        new Text(destination.description[2]),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            // share, explore buttons
-            // TODO(abarth): The theme and the bar should be part of card.
-            new ButtonTheme.bar(
-              child: new ButtonBar(
-                alignment: MainAxisAlignment.start,
-                children: <Widget>[
-                  new FlatButton(
-                    child: const Text('SHARE'),
-                    textColor: Colors.amber.shade500,
-                    onPressed: () { /* do nothing */ },
-                  ),
-                  new FlatButton(
-                    child: const Text('EXPLORE'),
-                    textColor: Colors.amber.shade500,
-                    onPressed: () { /* do nothing */ },
-                  ),
-                ],
+              // share, explore buttons
+              new ButtonTheme.bar(
+                child: new ButtonBar(
+                  alignment: MainAxisAlignment.start,
+                  children: <Widget>[
+                    new FlatButton(
+                      child: const Text('SHARE'),
+                      textColor: Colors.amber.shade500,
+                      onPressed: () { /* do nothing */ },
+                    ),
+                    new FlatButton(
+                      child: const Text('EXPLORE'),
+                      textColor: Colors.amber.shade500,
+                      onPressed: () { /* do nothing */ },
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

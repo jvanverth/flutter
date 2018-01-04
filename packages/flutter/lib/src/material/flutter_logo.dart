@@ -5,8 +5,6 @@
 import 'package:flutter/widgets.dart';
 
 import 'colors.dart';
-import 'icon_theme.dart';
-import 'icon_theme_data.dart';
 
 /// The Flutter logo, in widget form. This widget respects the [IconTheme].
 ///
@@ -38,7 +36,7 @@ class FlutterLogo extends StatelessWidget {
   /// 24.0.
   final double size;
 
-  /// The color swatch to use to paint the logo, Colors.blue by default.
+  /// The color swatch to use to paint the logo, [Colors.blue] by default.
   ///
   /// If for some reason the default colors are impractical, then one
   /// of [Colors.amber], [Colors.red], or [Colors.indigo] swatches can be used.
@@ -59,11 +57,11 @@ class FlutterLogo extends StatelessWidget {
   /// itself is drawn.
   final FlutterLogoStyle style;
 
-  /// The length of time for the animation if the [style], [swatch], or
+  /// The length of time for the animation if the [style], [colors], or
   /// [textColor] properties are changed.
   final Duration duration;
 
-  /// The curve for the logo animation if the [style], [swatch], or [textColor]
+  /// The curve for the logo animation if the [style], [colors], or [textColor]
   /// change.
   final Curve curve;
 

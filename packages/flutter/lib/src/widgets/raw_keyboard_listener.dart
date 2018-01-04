@@ -28,15 +28,14 @@ class RawKeyboardListener extends StatefulWidget {
   ///
   /// For text entry, consider using a [EditableText], which integrates with
   /// on-screen keyboards and input method editors (IMEs).
-  RawKeyboardListener({
+  const RawKeyboardListener({
     Key key,
     @required this.focusNode,
     @required this.onKey,
     @required this.child,
-  }) : super(key: key) {
-    assert(focusNode != null);
-    assert(child != null);
-  }
+  }) : assert(focusNode != null),
+       assert(child != null),
+       super(key: key);
 
   /// Controls whether this widget has keyboard focus.
   final FocusNode focusNode;
@@ -45,10 +44,18 @@ class RawKeyboardListener extends StatefulWidget {
   final ValueChanged<RawKeyEvent> onKey;
 
   /// The widget below this widget in the tree.
+  ///
+  /// {@macro flutter.widgets.child}
   final Widget child;
 
   @override
   _RawKeyboardListenerState createState() => new _RawKeyboardListenerState();
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsProperty<FocusNode>('focusNode', focusNode));
+  }
 }
 
 class _RawKeyboardListenerState extends State<RawKeyboardListener> {
@@ -60,6 +67,7 @@ class _RawKeyboardListenerState extends State<RawKeyboardListener> {
 
   @override
   void didUpdateWidget(RawKeyboardListener oldWidget) {
+    super.didUpdateWidget(oldWidget);
     if (widget.focusNode != oldWidget.focusNode) {
       oldWidget.focusNode.removeListener(_handleFocusChanged);
       widget.focusNode.addListener(_handleFocusChanged);

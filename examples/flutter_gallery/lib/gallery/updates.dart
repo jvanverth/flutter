@@ -6,14 +6,15 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+
+import 'package:url_launcher/url_launcher.dart';
 
 typedef Future<String> UpdateUrlFetcher();
 
 class Updater extends StatefulWidget {
-  Updater({ @required this.updateUrlFetcher, this.child, Key key }) : super(key: key) {
-    assert(updateUrlFetcher != null);
-  }
+  const Updater({ @required this.updateUrlFetcher, this.child, Key key })
+    : assert(updateUrlFetcher != null),
+      super(key: key);
 
   final UpdateUrlFetcher updateUrlFetcher;
   final Widget child;
@@ -42,7 +43,7 @@ class UpdaterState extends State<Updater> {
     if (updateUrl != null) {
       final bool wantsUpdate = await showDialog(context: context, child: _buildDialog());
       if (wantsUpdate != null && wantsUpdate)
-        UrlLauncher.launch(updateUrl);
+        launch(updateUrl);
     }
   }
 

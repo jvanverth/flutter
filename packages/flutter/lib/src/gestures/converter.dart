@@ -32,7 +32,13 @@ class _PointerState {
 }
 
 /// Converts from engine pointer data to framework pointer events.
+///
+/// This takes [PointerDataPacket] objects, as received from the engine via
+/// [dart:ui.Window.onPointerDataPacket], and converts them to [PointerEvent]
+/// objects.
 class PointerEventConverter {
+  PointerEventConverter._();
+
   // Map from platform pointer identifiers to PointerEvent pointer identifiers.
   static final Map<int, _PointerState> _pointers = <int, _PointerState>{};
 
@@ -44,6 +50,11 @@ class PointerEventConverter {
   }
 
   /// Expand the given packet of pointer data into a sequence of framework pointer events.
+  ///
+  /// The `devicePixelRatio` argument (usually given the value from
+  /// [dart:ui.Window.devicePixelRatio]) is used to convert the incoming data
+  /// from physical coordinates to logical pixels. See the discussion at
+  /// [PointerEvent] for more details on the [PointerEvent] coordinate space.
   static Iterable<PointerEvent> expand(Iterable<ui.PointerData> data, double devicePixelRatio) sync* {
     for (ui.PointerData datum in data) {
       final Offset position = new Offset(datum.physicalX, datum.physicalY) / devicePixelRatio;
@@ -161,7 +172,8 @@ class PointerEventConverter {
               radiusMin: datum.radiusMin,
               radiusMax: datum.radiusMax,
               orientation: datum.orientation,
-              tilt: datum.tilt
+              tilt: datum.tilt,
+              synthesized: true,
             );
             state.lastPosition = position;
           }
@@ -248,7 +260,8 @@ class PointerEventConverter {
               radiusMin: datum.radiusMin,
               radiusMax: datum.radiusMax,
               orientation: datum.orientation,
-              tilt: datum.tilt
+              tilt: datum.tilt,
+              synthesized: true,
             );
             state.lastPosition = position;
           }

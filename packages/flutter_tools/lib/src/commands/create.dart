@@ -4,9 +4,15 @@
 
 import 'dart:async';
 
+import 'package:linter/src/rules/pub/package_names.dart' as package_names; // ignore: implementation_imports
+import 'package:linter/src/utils.dart' as linter_utils; // ignore: implementation_imports
+
 import '../android/android.dart' as android;
+import '../android/android_sdk.dart' as android_sdk;
+import '../android/gradle.dart' as gradle;
 import '../base/common.dart';
 import '../base/file_system.dart';
+import '../base/os.dart';
 import '../base/utils.dart';
 import '../build_info.dart';
 import '../cache.dart';
@@ -18,6 +24,7 @@ import '../ios/xcodeproj.dart';
 import '../plugins.dart';
 import '../runner/flutter_command.dart';
 import '../template.dart';
+import '../version.dart';
 
 class CreateCommand extends FlutterCommand {
   CreateCommand() {
@@ -25,22 +32,54 @@ class CreateCommand extends FlutterCommand {
       defaultsTo: true,
       help: 'Whether to run "flutter packages get" after the project has been created.'
     );
+    argParser.addFlag('offline',
+      defaultsTo: false,
+      help: 'When "flutter packages get" is run by the create command, this indicates '
+        'whether to run it in offline mode or not. In offline mode, it will need to '
+        'have all dependencies already available in the pub cache to succeed.'
+    );
     argParser.addFlag(
       'with-driver-test',
       negatable: true,
       defaultsTo: false,
       help: 'Also add a flutter_driver dependency and generate a sample \'flutter drive\' test.'
     );
-    argParser.addFlag(
-      'plugin',
-      negatable: true,
-      defaultsTo: false,
-      help: 'Generate a new Flutter Plugin project.'
+    argParser.addOption(
+      'template',
+      abbr: 't',
+      allowed: <String>['app', 'package', 'plugin'],
+      help: 'Specify the type of project to create.',
+      valueHelp: 'type',
+      allowedHelp: <String, String>{
+        'app': '(default) Generate a Flutter application.',
+        'package': 'Generate a shareable Flutter project containing modular Dart code.',
+        'plugin': 'Generate a shareable Flutter project containing an API in Dart code\n'
+            'with a platform-specific implementation for Android, for iOS code, or for both.',
+      },
+      defaultsTo: 'app',
     );
     argParser.addOption(
       'description',
-      defaultsTo: 'A new flutter project.',
-      help: 'The description to use for your new flutter project. This string ends up in the pubspec.yaml file.'
+      defaultsTo: 'A new Flutter project.',
+      help: 'The description to use for your new Flutter project. This string ends up in the pubspec.yaml file.'
+    );
+    argParser.addOption(
+      'org',
+      defaultsTo: 'com.yourcompany',
+      help: 'The organization responsible for your new Flutter project, in reverse domain name notation.\n'
+            'This string is used in Java package names and as prefix in the iOS bundle identifier.'
+    );
+    argParser.addOption(
+      'ios-language',
+      abbr: 'i',
+      defaultsTo: 'objc',
+      allowed: <String>['objc', 'swift'],
+    );
+    argParser.addOption(
+      'android-language',
+      abbr: 'a',
+      defaultsTo: 'java',
+      allowed: <String>['java', 'kotlin'],
     );
   }
 
@@ -52,7 +91,7 @@ class CreateCommand extends FlutterCommand {
     'If run on a project that already exists, this will repair the project, recreating any files that are missing.';
 
   @override
-  String get invocation => "${runner.executableName} $name <output directory>";
+  String get invocation => '${runner.executableName} $name <output directory>';
 
   @override
   Future<Null> runCommand() async {
@@ -87,11 +126,17 @@ class CreateCommand extends FlutterCommand {
     if (!fs.isFileSync(fs.path.join(flutterDriverPackagePath, 'pubspec.yaml')))
       throwToolExit('Unable to find package:flutter_driver in $flutterDriverPackagePath', exitCode: 2);
 
-    final bool generatePlugin = argResults['plugin'];
+    final String template = argResults['template'];
+    final bool generatePlugin = template == 'plugin';
+    final bool generatePackage = template == 'package';
 
     final Directory projectDir = fs.directory(argResults.rest.first);
-    final String dirPath = fs.path.normalize(projectDir.absolute.path);
-    final String projectName = _normalizeProjectName(fs.path.basename(dirPath));
+    String dirPath = fs.path.normalize(projectDir.absolute.path);
+    // TODO(goderbauer): Work-around for: https://github.com/dart-lang/path/issues/24
+    if (fs.path.basename(dirPath) == '.')
+      dirPath = fs.path.dirname(dirPath);
+    final String organization = argResults['org'];
+    final String projectName = fs.path.basename(dirPath);
 
     String error =_validateProjectDir(dirPath, flutterRoot: flutterRoot);
     if (error != null)
@@ -102,13 +147,40 @@ class CreateCommand extends FlutterCommand {
       throwToolExit(error);
 
     final Map<String, dynamic> templateContext = _templateContext(
-        projectName, argResults['description'], dirPath,
-        flutterPackagesDirectory, renderDriverTest: argResults['with-driver-test'],
-        withPluginHook: generatePlugin,
+      organization: organization,
+      projectName: projectName,
+      projectDescription: argResults['description'],
+      dirPath: dirPath,
+      flutterRoot: flutterRoot,
+      renderDriverTest: argResults['with-driver-test'],
+      withPluginHook: generatePlugin,
+      androidLanguage: argResults['android-language'],
+      iosLanguage: argResults['ios-language'],
     );
 
     printStatus('Creating project ${fs.path.relative(dirPath)}...');
     int generatedCount = 0;
+    if (generatePackage) {
+      final String description = argResults.wasParsed('description')
+          ? argResults['description']
+          : 'A new flutter package project.';
+      templateContext['description'] = description;
+      generatedCount += _renderTemplate('package', dirPath, templateContext);
+
+      if (argResults['pub'])
+        await pubGet(
+          context: PubContext.createPackage,
+          directory: dirPath,
+          offline: argResults['offline'],
+        );
+
+      final String relativePath = fs.path.relative(dirPath);
+      printStatus('Wrote $generatedCount files.');
+      printStatus('');
+      printStatus('Your package code is in lib/$projectName.dart in the $relativePath directory.');
+      return;
+    }
+
     String appPath = dirPath;
     if (generatePlugin) {
       final String description = argResults.wasParsed('description')
@@ -118,20 +190,31 @@ class CreateCommand extends FlutterCommand {
       generatedCount += _renderTemplate('plugin', dirPath, templateContext);
 
       if (argResults['pub'])
-        await pubGet(directory: dirPath);
+        await pubGet(
+          context: PubContext.createPlugin,
+          directory: dirPath,
+          offline: argResults['offline'],
+        );
+
+      if (android_sdk.androidSdk != null)
+        gradle.updateLocalProperties(projectPath: dirPath);
 
       appPath = fs.path.join(dirPath, 'example');
       final String androidPluginIdentifier = templateContext['androidIdentifier'];
       final String exampleProjectName = projectName + '_example';
       templateContext['projectName'] = exampleProjectName;
-      templateContext['androidIdentifier'] = _createAndroidIdentifier(exampleProjectName);
-      templateContext['iosIdentifier'] = _createUTIIdentifier(exampleProjectName);
+      templateContext['androidIdentifier'] = _createAndroidIdentifier(organization, exampleProjectName);
+      templateContext['iosIdentifier'] = _createUTIIdentifier(organization, exampleProjectName);
       templateContext['description'] = 'Demonstrates how to use the $projectName plugin.';
       templateContext['pluginProjectName'] = projectName;
       templateContext['androidPluginIdentifier'] = androidPluginIdentifier;
     }
 
     generatedCount += _renderTemplate('create', appPath, templateContext);
+    generatedCount += _injectGradleWrapper(appPath);
+    if (appPath != dirPath) {
+      generatedCount += _injectGradleWrapper(dirPath);
+    }
     if (argResults['with-driver-test']) {
       final String testPath = fs.path.join(appPath, 'test_driver');
       generatedCount += _renderTemplate('driver', testPath, templateContext);
@@ -140,12 +223,21 @@ class CreateCommand extends FlutterCommand {
     printStatus('Wrote $generatedCount files.');
     printStatus('');
 
-    updateXcodeGeneratedProperties(appPath, BuildMode.debug, flx.defaultMainPath);
+    updateXcodeGeneratedProperties(
+      projectPath: appPath,
+      buildInfo: BuildInfo.debug,
+      target: flx.defaultMainPath,
+      hasPlugins: generatePlugin,
+      previewDart2: false,
+    );
 
     if (argResults['pub']) {
-      await pubGet(directory: appPath);
+      await pubGet(context: PubContext.create, directory: appPath, offline: argResults['offline']);
       injectPlugins(directory: appPath);
     }
+
+    if (android_sdk.androidSdk != null)
+      gradle.updateLocalProperties(projectPath: appPath);
 
     printStatus('');
 
@@ -169,29 +261,37 @@ Your main program file is lib/main.dart in the $relativeAppPath directory.
 Your plugin code is in lib/$projectName.dart in the $relativePluginPath directory.
 
 Host platform code is in the android/ and ios/ directories under $relativePluginPath.
+To edit platform code in an IDE see https://flutter.io/platform-plugins/#edit-code.
 ''');
       }
     } else {
       printStatus("You'll need to install additional components before you can run "
-        "your Flutter app:");
+        'your Flutter app:');
       printStatus('');
 
       // Give the user more detailed analysis.
       await doctor.diagnose();
       printStatus('');
       printStatus("After installing components, run 'flutter doctor' in order to "
-        "re-validate your setup.");
+        're-validate your setup.');
       printStatus("When complete, type 'flutter run' from the '$relativeAppPath' "
-        "directory in order to launch your app.");
-      printStatus("Your main program file is: $relativeAppPath/lib/main.dart");
+        'directory in order to launch your app.');
+      printStatus('Your main program file is: $relativeAppPath/lib/main.dart');
     }
   }
 
-  Map<String, dynamic> _templateContext(String projectName,
-      String projectDescription, String dirPath, String flutterPackagesDirectory,
-      { bool renderDriverTest: false, bool withPluginHook: false }) {
-    flutterPackagesDirectory = fs.path.normalize(flutterPackagesDirectory);
-    flutterPackagesDirectory = _relativePath(from: dirPath, to: flutterPackagesDirectory);
+  Map<String, dynamic> _templateContext({
+    String organization,
+    String projectName,
+    String projectDescription,
+    String androidLanguage,
+    String iosLanguage,
+    String dirPath,
+    String flutterRoot,
+    bool renderDriverTest: false,
+    bool withPluginHook: false,
+  }) {
+    flutterRoot = fs.path.normalize(flutterRoot);
 
     final String pluginDartClass = _createPluginClassName(projectName);
     final String pluginClass = pluginDartClass.endsWith('Plugin')
@@ -199,16 +299,23 @@ Host platform code is in the android/ and ios/ directories under $relativePlugin
         : pluginDartClass + 'Plugin';
 
     return <String, dynamic>{
+      'organization': organization,
       'projectName': projectName,
-      'androidIdentifier': _createAndroidIdentifier(projectName),
-      'iosIdentifier': _createUTIIdentifier(projectName),
+      'androidIdentifier': _createAndroidIdentifier(organization, projectName),
+      'iosIdentifier': _createUTIIdentifier(organization, projectName),
       'description': projectDescription,
-      'flutterPackagesDirectory': flutterPackagesDirectory,
+      'dartSdk': '$flutterRoot/bin/cache/dart-sdk',
       'androidMinApiLevel': android.minApiLevel,
+      'androidSdkVersion': android_sdk.minimumAndroidSdkVersion,
+      'androidFlutterJar': '$flutterRoot/bin/cache/artifacts/engine/android-arm/flutter.jar',
       'withDriverTest': renderDriverTest,
       'pluginClass': pluginClass,
       'pluginDartClass': pluginDartClass,
       'withPluginHook': withPluginHook,
+      'androidLanguage': androidLanguage,
+      'iosLanguage': iosLanguage,
+      'flutterRevision': FlutterVersion.instance.frameworkRevision,
+      'flutterChannel': FlutterVersion.instance.channel,
     };
   }
 
@@ -216,18 +323,26 @@ Host platform code is in the android/ and ios/ directories under $relativePlugin
     final Template template = new Template.fromName(templateName);
     return template.render(fs.directory(dirPath), context, overwriteExisting: false);
   }
+
+  int _injectGradleWrapper(String projectDir) {
+    int filesCreated = 0;
+    copyDirectorySync(
+      cache.getArtifactDirectory('gradle_wrapper'),
+      fs.directory(fs.path.join(projectDir, 'android')),
+      (File sourceFile, File destinationFile) {
+        filesCreated++;
+        final String modes = sourceFile.statSync().modeString();
+        if (modes != null && modes.contains('x')) {
+          os.makeExecutable(destinationFile);
+        }
+      },
+    );
+    return filesCreated;
+  }
 }
 
-String _normalizeProjectName(String name) {
-  name = name.replaceAll('-', '_').replaceAll(' ', '_');
-  // Strip any extension (like .dart).
-  if (name.contains('.'))
-    name = name.substring(0, name.indexOf('.'));
-  return name;
-}
-
-String _createAndroidIdentifier(String name) {
-  return 'com.yourcompany.$name';
+String _createAndroidIdentifier(String organization, String name) {
+  return '$organization.$name'.replaceAll('_', '');
 }
 
 String _createPluginClassName(String name) {
@@ -235,12 +350,12 @@ String _createPluginClassName(String name) {
   return camelizedName[0].toUpperCase() + camelizedName.substring(1);
 }
 
-String _createUTIIdentifier(String name) {
+String _createUTIIdentifier(String organization, String name) {
   // Create a UTI (https://en.wikipedia.org/wiki/Uniform_Type_Identifier) from a base name
-  final RegExp disallowed = new RegExp(r"[^a-zA-Z0-9\-\.\u0080-\uffff]+");
+  final RegExp disallowed = new RegExp(r'[^a-zA-Z0-9\-\.\u0080-\uffff]+');
   name = camelCase(name).replaceAll(disallowed, '');
   name = name.isEmpty ? 'untitled' : name;
-  return 'com.yourcompany.$name';
+  return '$organization.$name';
 }
 
 final Set<String> _packageDependencies = new Set<String>.from(<String>[
@@ -263,28 +378,32 @@ final Set<String> _packageDependencies = new Set<String>.from(<String>[
   'yaml'
 ]);
 
-/// Return `null` if the project name is legal. Return a validation message if
+/// Return null if the project name is legal. Return a validation message if
 /// we should disallow the project name.
 String _validateProjectName(String projectName) {
+  if (!linter_utils.isValidPackageName(projectName)) {
+    final String packageNameDetails = new package_names.PubPackageNames().details;
+    return '"$projectName" is not a valid Dart package name.\n\n$packageNameDetails';
+  }
   if (_packageDependencies.contains(projectName)) {
     return "Invalid project name: '$projectName' - this will conflict with Flutter "
-      "package dependencies.";
+      'package dependencies.';
   }
   return null;
 }
 
-/// Return `null` if the project directory is legal. Return a validation message
+/// Return null if the project directory is legal. Return a validation message
 /// if we should disallow the directory name.
 String _validateProjectDir(String dirPath, { String flutterRoot }) {
   if (fs.path.isWithin(flutterRoot, dirPath)) {
-    return "Cannot create a project within the Flutter SDK.\n"
+    return 'Cannot create a project within the Flutter SDK.\n'
       "Target directory '$dirPath' is within the Flutter SDK at '$flutterRoot'.";
   }
 
   final FileSystemEntityType type = fs.typeSync(dirPath);
 
   if (type != FileSystemEntityType.NOT_FOUND) {
-    switch(type) {
+    switch (type) {
       case FileSystemEntityType.FILE:
         // Do not overwrite files.
         return "Invalid project name: '$dirPath' - file exists.";
@@ -295,12 +414,4 @@ String _validateProjectDir(String dirPath, { String flutterRoot }) {
   }
 
   return null;
-}
-
-String _relativePath({ String from, String to }) {
-  final String result = fs.path.relative(to, from: from);
-  // `fs.path.relative()` doesn't always return a correct result: dart-lang/path#12.
-  if (fs.isDirectorySync(fs.path.join(from, result)))
-    return result;
-  return to;
 }

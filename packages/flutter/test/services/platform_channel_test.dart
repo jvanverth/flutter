@@ -9,11 +9,11 @@ import 'package:flutter/services.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('PlatformMessageChannel', () {
+  group('BasicMessageChannel', () {
     const MessageCodec<String> string = const StringCodec();
-    const PlatformMessageChannel<String> channel = const PlatformMessageChannel<String>('ch', string);
+    const BasicMessageChannel<String> channel = const BasicMessageChannel<String>('ch', string);
     test('can send string message and get reply', () async {
-      PlatformMessages.setMockBinaryMessageHandler(
+      BinaryMessages.setMockMessageHandler(
         'ch',
         (ByteData message) async => string.encodeMessage(string.decodeMessage(message) + ' world'),
       );
@@ -23,7 +23,7 @@ void main() {
     test('can receive string message and send reply', () async {
       channel.setMessageHandler((String message) async => message + ' world');
       String reply;
-      await PlatformMessages.handlePlatformMessage(
+      await BinaryMessages.handlePlatformMessage(
         'ch',
         const StringCodec().encodeMessage('hello'),
         (ByteData replyBinary) {
@@ -34,12 +34,12 @@ void main() {
     });
   });
 
-  group('PlatformMethodChannel', () {
+  group('MethodChannel', () {
     const MessageCodec<dynamic> jsonMessage = const JSONMessageCodec();
     const MethodCodec jsonMethod = const JSONMethodCodec();
-    const PlatformMethodChannel channel = const PlatformMethodChannel('ch7', jsonMethod);
+    const MethodChannel channel = const MethodChannel('ch7', jsonMethod);
     test('can invoke method and get result', () async {
-      PlatformMessages.setMockBinaryMessageHandler(
+      BinaryMessages.setMockMessageHandler(
         'ch7',
         (ByteData message) async {
           final Map<dynamic, dynamic> methodCall = jsonMessage.decodeMessage(message);
@@ -53,7 +53,7 @@ void main() {
       expect(result, equals('hello world'));
     });
     test('can invoke method and get error', () async {
-      PlatformMessages.setMockBinaryMessageHandler(
+      BinaryMessages.setMockMessageHandler(
         'ch7',
         (ByteData message) async {
           return jsonMessage.encodeMessage(<dynamic>[
@@ -75,7 +75,7 @@ void main() {
       }
     });
     test('can invoke unimplemented method', () async {
-      PlatformMessages.setMockBinaryMessageHandler(
+      BinaryMessages.setMockMessageHandler(
         'ch7',
         (ByteData message) async => null,
       );
@@ -89,33 +89,100 @@ void main() {
         fail('MissingPluginException expected');
       }
     });
+    test('can handle method call with no registered plugin', () async {
+      channel.setMethodCallHandler(null);
+      final ByteData call = jsonMethod.encodeMethodCall(const MethodCall('sayHello', 'hello'));
+      ByteData envelope;
+      await BinaryMessages.handlePlatformMessage('ch7', call, (ByteData result) {
+        envelope = result;
+      });
+      expect(envelope, isNull);
+    });
+    test('can handle method call of unimplemented method', () async {
+      channel.setMethodCallHandler((MethodCall call) async {
+        throw new MissingPluginException();
+      });
+      final ByteData call = jsonMethod.encodeMethodCall(const MethodCall('sayHello', 'hello'));
+      ByteData envelope;
+      await BinaryMessages.handlePlatformMessage('ch7', call, (ByteData result) {
+        envelope = result;
+      });
+      expect(envelope, isNull);
+    });
+    test('can handle method call with successful result', () async {
+      channel.setMethodCallHandler((MethodCall call) async => '${call.arguments}, world');
+      final ByteData call = jsonMethod.encodeMethodCall(const MethodCall('sayHello', 'hello'));
+      ByteData envelope;
+      await BinaryMessages.handlePlatformMessage('ch7', call, (ByteData result) {
+        envelope = result;
+      });
+      expect(jsonMethod.decodeEnvelope(envelope), equals('hello, world'));
+    });
+    test('can handle method call with expressive error result', () async {
+      channel.setMethodCallHandler((MethodCall call) async {
+        throw new PlatformException(code: 'bad', message: 'sayHello failed', details: null);
+      });
+      final ByteData call = jsonMethod.encodeMethodCall(const MethodCall('sayHello', 'hello'));
+      ByteData envelope;
+      await BinaryMessages.handlePlatformMessage('ch7', call, (ByteData result) {
+        envelope = result;
+      });
+      try {
+        jsonMethod.decodeEnvelope(envelope);
+        fail('Exception expected');
+      } on PlatformException catch(e) {
+        expect(e.code, equals('bad'));
+        expect(e.message, equals('sayHello failed'));
+      } catch (e) {
+        fail('PlatformException expected');
+      }
+    });
+    test('can handle method call with other error result', () async {
+      channel.setMethodCallHandler((MethodCall call) async {
+        throw new ArgumentError('bad');
+      });
+      final ByteData call = jsonMethod.encodeMethodCall(const MethodCall('sayHello', 'hello'));
+      ByteData envelope;
+      await BinaryMessages.handlePlatformMessage('ch7', call, (ByteData result) {
+        envelope = result;
+      });
+      try {
+        jsonMethod.decodeEnvelope(envelope);
+        fail('Exception expected');
+      } on PlatformException catch(e) {
+        expect(e.code, equals('error'));
+        expect(e.message, equals('Invalid argument(s): bad'));
+      } catch (e) {
+        fail('PlatformException expected');
+      }
+    });
   });
-  group('PlatformEventChannel', () {
+  group('EventChannel', () {
     const MessageCodec<dynamic> jsonMessage = const JSONMessageCodec();
     const MethodCodec jsonMethod = const JSONMethodCodec();
-    const PlatformEventChannel channel = const PlatformEventChannel('ch', jsonMethod);
+    const EventChannel channel = const EventChannel('ch', jsonMethod);
+    void emitEvent(dynamic event) {
+      BinaryMessages.handlePlatformMessage(
+        'ch',
+        event,
+            (ByteData reply) {},
+      );
+    }
     test('can receive event stream', () async {
-      void emitEvent(dynamic event) {
-        PlatformMessages.handlePlatformMessage(
-          'ch',
-          event,
-          (ByteData reply) {},
-        );
-      }
-      bool cancelled = false;
-      PlatformMessages.setMockBinaryMessageHandler(
+      bool canceled = false;
+      BinaryMessages.setMockMessageHandler(
         'ch',
         (ByteData message) async {
           final Map<dynamic, dynamic> methodCall = jsonMessage.decodeMessage(message);
           if (methodCall['method'] == 'listen') {
             final String argument = methodCall['args'];
-            emitEvent(jsonMessage.encodeMessage(<dynamic>[argument + '1']));
-            emitEvent(jsonMessage.encodeMessage(<dynamic>[argument + '2']));
+            emitEvent(jsonMethod.encodeSuccessEnvelope(argument + '1'));
+            emitEvent(jsonMethod.encodeSuccessEnvelope(argument + '2'));
             emitEvent(null);
-            return jsonMessage.encodeMessage(<dynamic>[null]);
+            return jsonMethod.encodeSuccessEnvelope(null);
           } else if (methodCall['method'] == 'cancel') {
-            cancelled = true;
-            return jsonMessage.encodeMessage(<dynamic>[null]);
+            canceled = true;
+            return jsonMethod.encodeSuccessEnvelope(null);
           } else {
             fail('Expected listen or cancel');
           }
@@ -124,7 +191,35 @@ void main() {
       final List<dynamic> events = await channel.receiveBroadcastStream('hello').toList();
       expect(events, orderedEquals(<String>['hello1', 'hello2']));
       await new Future<Null>.delayed(Duration.ZERO);
-      expect(cancelled, isTrue);
+      expect(canceled, isTrue);
+    });
+    test('can receive error event', () async {
+      BinaryMessages.setMockMessageHandler(
+        'ch',
+        (ByteData message) async {
+          final Map<dynamic, dynamic> methodCall = jsonMessage.decodeMessage(message);
+          if (methodCall['method'] == 'listen') {
+            final String argument = methodCall['args'];
+            emitEvent(jsonMethod.encodeErrorEnvelope(code: '404', message: 'Not Found.', details: argument));
+            return jsonMethod.encodeSuccessEnvelope(null);
+          } else if (methodCall['method'] == 'cancel') {
+            return jsonMethod.encodeSuccessEnvelope(null);
+          } else {
+            fail('Expected listen or cancel');
+          }
+        },
+      );
+      final List<dynamic> events = <dynamic>[];
+      final List<dynamic> errors = <dynamic>[];
+      channel.receiveBroadcastStream('hello').listen(events.add, onError: errors.add);
+      await new Future<Null>.delayed(Duration.ZERO);
+      expect(events, isEmpty);
+      expect(errors, hasLength(1));
+      expect(errors[0], const isInstanceOf<PlatformException>());
+      final PlatformException error = errors[0];
+      expect(error.code, '404');
+      expect(error.message, 'Not Found.');
+      expect(error.details, 'hello');
     });
   });
 }

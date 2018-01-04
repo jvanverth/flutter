@@ -25,32 +25,40 @@ import 'theme.dart';
 ///
 /// Requires one of its ancestors to be a [Material] widget.
 ///
+/// If you want an ink-splash effect for taps, but don't want to use a button,
+/// consider using [InkWell] directly.
+///
+/// Raised buttons will expand to fit the child widget, if necessary.
+///
 /// See also:
 ///
-///  * [FlatButton]
-///  * [DropdownButton]
-///  * [FloatingActionButton]
+///  * [FlatButton], a material design button without a shadow.
+///  * [DropdownButton], a button that shows options to select from.
+///  * [FloatingActionButton], the round button in material applications.
+///  * [IconButton], to create buttons that just contain icons.
+///  * [InkWell], which implements the ink splash part of a flat button.
 ///  * <https://material.google.com/components/buttons.html>
 class RaisedButton extends StatelessWidget {
   /// Creates a raised button.
   ///
   /// The [child] argument is required and is typically a [Text] widget in all
   /// caps.
-  RaisedButton({
+  const RaisedButton({
     Key key,
     @required this.onPressed,
     this.color,
     this.highlightColor,
     this.splashColor,
     this.disabledColor,
-    this.elevation: 2,
-    this.highlightElevation: 8,
-    this.disabledElevation: 0,
+    this.elevation: 2.0,
+    this.highlightElevation: 8.0,
+    this.disabledElevation: 0.0,
     this.colorBrightness,
     this.child
   }) : super(key: key);
 
-  /// The callback that is called when the button is tapped or otherwise activated.
+  /// The callback that is called when the button is tapped or otherwise
+  /// activated.
   ///
   /// If this is set to null, the button will be disabled.
   final VoidCallback onPressed;
@@ -58,7 +66,8 @@ class RaisedButton extends StatelessWidget {
   /// The primary color of the button, as printed on the [Material], while it
   /// is in its default (unpressed, enabled) state.
   ///
-  /// Defaults to null, meaning that the color is automatically derived from the [Theme].
+  /// Defaults to null, meaning that the color is automatically derived from the
+  /// [Theme].
   ///
   /// Typically, a material design color will be used, as follows:
   ///
@@ -71,51 +80,67 @@ class RaisedButton extends StatelessWidget {
   /// ```
   final Color color;
 
-  /// The primary color of the button when the button is in the down (pressed) state.
+  /// The primary color of the button when the button is in the down (pressed)
+  /// state.
+  ///
   /// The splash is represented as a circular overlay that appears above the
-  /// [highlightColor] overlay. The splash overlay has a center point that matches
-  /// the hit point of the user touch event. The splash overlay will expand to
-  /// fill the button area if the touch is held for long enough time. If the splash
-  /// color has transparency then the highlight and button color will show through.
+  /// [highlightColor] overlay. The splash overlay has a center point that
+  /// matches the hit point of the user touch event. The splash overlay will
+  /// expand to fill the button area if the touch is held for long enough time.
+  /// If the splash color has transparency then the highlight and button color
+  /// will show through.
   ///
   /// Defaults to the splash color from the [Theme].
   final Color splashColor;
 
   /// The secondary color of the button when the button is in the down (pressed)
-  /// state. The higlight color is represented as a solid color that is overlaid over the
-  /// button color (if any). If the highlight color has transparency, the button color
-  /// will show through. The highlight fades in quickly as the button is held down.
+  /// state.
+  ///
+  /// The highlight color is represented as a solid color that is overlaid over
+  /// the button color (if any). If the highlight color has transparency, the
+  /// button color will show through. The highlight fades in quickly as the
+  /// button is held down.
   ///
   /// Defaults to the highlight color from the [Theme].
   final Color highlightColor;
 
 
   /// The color of the button when the button is disabled. Buttons are disabled
-  /// by default. To enable a button, set its [onPressed] property to a non-null
-  /// value.
+  /// by default.
+  ///
+  /// To enable a button, set its [onPressed] property to a non-null value.
   final Color disabledColor;
 
-  /// The z-coordinate at which to place this button.
-  ///
-  /// The following elevations have defined shadows: 1, 2, 3, 4, 6, 8, 9, 12, 16, 24
+  /// The z-coordinate at which to place this button. This controls the size of
+  /// the shadow below the raised button.
   ///
   /// Defaults to 2, the appropriate elevation for raised buttons.
-  final int elevation;
-
-  /// The z-coordinate at which to place this button when highlighted.
   ///
-  /// The following elevations have defined shadows: 1, 2, 3, 4, 6, 8, 9, 12, 16, 24
+  /// See also:
+  ///
+  ///  * [FlatButton], a button with no elevation.
+  final double elevation;
+
+  /// The z-coordinate at which to place this button when highlighted. This
+  /// controls the size of the shadow below the raised button.
   ///
   /// Defaults to 8, the appropriate elevation for raised buttons while they are
   /// being touched.
-  final int highlightElevation;
-
-  /// The z-coordinate at which to place this button when disabled.
   ///
-  /// The following elevations have defined shadows: 1, 2, 3, 4, 6, 8, 9, 12, 16, 24
+  /// See also:
+  ///
+  ///  * [elevation], the default elevation.
+  final double highlightElevation;
+
+  /// The z-coordinate at which to place this button when disabled. This
+  /// controls the size of the shadow below the raised button.
   ///
   /// Defaults to 0, the appropriate elevation for disabled raised buttons.
-  final int disabledElevation;
+  ///
+  /// See also:
+  ///
+  ///  * [elevation], the default elevation.
+  final double disabledElevation;
 
   /// The theme brightness to use for this button.
   ///
@@ -127,8 +152,10 @@ class RaisedButton extends StatelessWidget {
   /// Typically a [Text] widget in all caps.
   final Widget child;
 
-  /// Whether the button is enabled or disabled. Buttons are disabled by default. To
-  /// enable a button, set its [onPressed] property to a non-null value.
+  /// Whether the button is enabled or disabled.
+  ///
+  /// Buttons are disabled by default. To enable a button, set its [onPressed]
+  /// property to a non-null value.
   bool get enabled => onPressed != null;
 
   Color _getColor(BuildContext context) {

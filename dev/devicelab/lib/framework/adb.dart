@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -23,7 +24,7 @@ DeviceOperatingSystem deviceOperatingSystem = DeviceOperatingSystem.android;
 /// Discovers available devices and chooses one to work with.
 abstract class DeviceDiscovery {
   factory DeviceDiscovery() {
-    switch(deviceOperatingSystem) {
+    switch (deviceOperatingSystem) {
       case DeviceOperatingSystem.android:
         return new AndroidDeviceDiscovery();
       case DeviceOperatingSystem.ios:
@@ -44,7 +45,7 @@ abstract class DeviceDiscovery {
   ///
   /// Returns the same device when called repeatedly (unlike
   /// [chooseWorkingDevice]). This is useful when you need to perform multiple
-  /// perations on one.
+  /// operations on one.
   Future<Device> get workingDevice;
 
   /// Lists all available devices' IDs.
@@ -152,7 +153,7 @@ class AndroidDeviceDiscovery implements DeviceDiscovery {
           results.add(deviceID);
         }
       } else {
-        throw 'Failed to parse device from adb output: $line';
+        throw 'Failed to parse device from adb output: "$line"';
       }
     }
 
@@ -259,6 +260,7 @@ class AndroidDevice implements Device {
   Future<Map<String, dynamic>> getMemoryStats(String packageName) async {
     final String meminfo = await shellEval('dumpsys', <String>['meminfo', packageName]);
     final Match match = new RegExp(r'TOTAL\s+(\d+)').firstMatch(meminfo);
+    assert(match != null, 'could not parse dumpsys meminfo output');
     return <String, dynamic>{
       'total_kb': int.parse(match.group(1)),
     };
@@ -308,14 +310,13 @@ class IosDeviceDiscovery implements DeviceDiscovery {
 
   @override
   Future<List<String>> discoverDevices() async {
-    // TODO: use the -k UniqueDeviceID option, which requires much less parsing.
-    final List<String> iosDeviceIds = grep('UniqueDeviceID', from: await eval('ideviceinfo', <String>[]))
-      .map((String line) => line.split(' ').last).toList();
-
-    if (iosDeviceIds.isEmpty)
+    final List<String> iosDeviceIDs = LineSplitter.split(await eval('idevice_id', <String>['-l']))
+      .map((String line) => line.trim())
+      .where((String line) => line.isNotEmpty)
+      .toList();
+    if (iosDeviceIDs.isEmpty)
       throw 'No connected iOS devices found.';
-
-    return iosDeviceIds;
+    return iosDeviceIDs;
   }
 
   @override

@@ -79,7 +79,7 @@ abstract class AssetBundle {
   void evict(String key) { }
 
   @override
-  String toString() => '$runtimeType#$hashCode()';
+  String toString() => '${describeIdentity(this)}()';
 }
 
 /// An [AssetBundle] that loads resources over the network.
@@ -133,7 +133,7 @@ class NetworkAssetBundle extends AssetBundle {
   // should implement evict().
 
   @override
-  String toString() => '$runtimeType#$hashCode($_baseUrl)';
+  String toString() => '${describeIdentity(this)}($_baseUrl)';
 }
 
 /// An [AssetBundle] that permanently caches string and structured resources
@@ -216,7 +216,7 @@ class PlatformAssetBundle extends CachingAssetBundle {
   Future<ByteData> load(String key) async {
     final Uint8List encoded = UTF8.encoder.convert(key);
     final ByteData asset =
-        await PlatformMessages.sendBinary('flutter/assets', encoded.buffer.asByteData());
+        await BinaryMessages.send('flutter/assets', encoded.buffer.asByteData());
     if (asset == null)
       throw new FlutterError('Unable to load asset: $key');
     return asset;

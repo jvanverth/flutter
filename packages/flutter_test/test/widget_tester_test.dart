@@ -5,10 +5,15 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+const List<Widget> fooBarTexts = const <Text>[
+  const Text('foo', textDirection: TextDirection.ltr),
+  const Text('bar', textDirection: TextDirection.ltr),
+];
+
 void main() {
   group('findsOneWidget', () {
     testWidgets('finds exactly one widget', (WidgetTester tester) async {
-      await tester.pumpWidget(const Text('foo'));
+      await tester.pumpWidget(const Text('foo', textDirection: TextDirection.ltr));
       expect(find.text('foo'), findsOneWidget);
     });
 
@@ -34,7 +39,7 @@ void main() {
     });
 
     testWidgets('fails with a descriptive message', (WidgetTester tester) async {
-      await tester.pumpWidget(const Text('foo'));
+      await tester.pumpWidget(const Text('foo', textDirection: TextDirection.ltr));
 
       TestFailure failure;
       try {
@@ -47,12 +52,12 @@ void main() {
       final String message = failure.message;
 
       expect(message, contains('Expected: no matching nodes in the widget tree\n'));
-      expect(message, contains('Actual: ?:<exactly one widget with text "foo": Text("foo")>\n'));
+      expect(message, contains('Actual: ?:<exactly one widget with text "foo": Text("foo", textDirection: ltr)>\n'));
       expect(message, contains('Which: means one was found but none were expected\n'));
     });
 
     testWidgets('fails with a descriptive message when skipping', (WidgetTester tester) async {
-      await tester.pumpWidget(const Text('foo'));
+      await tester.pumpWidget(const Text('foo', textDirection: TextDirection.ltr));
 
       TestFailure failure;
       try {
@@ -65,12 +70,12 @@ void main() {
       final String message = failure.message;
 
       expect(message, contains('Expected: no matching nodes in the widget tree\n'));
-      expect(message, contains('Actual: ?:<exactly one widget with text "foo" (ignoring offstage widgets): Text("foo")>\n'));
+      expect(message, contains('Actual: ?:<exactly one widget with text "foo" (ignoring offstage widgets): Text("foo", textDirection: ltr)>\n'));
       expect(message, contains('Which: means one was found but none were expected\n'));
     });
 
     testWidgets('pumping', (WidgetTester tester) async {
-      await tester.pumpWidget(const Text('foo'));
+      await tester.pumpWidget(const Text('foo', textDirection: TextDirection.ltr));
       int count;
 
       final AnimationController test = new AnimationController(
@@ -106,7 +111,7 @@ void main() {
 
   group('find.byElementPredicate', () {
     testWidgets('fails with a custom description in the message', (WidgetTester tester) async {
-      await tester.pumpWidget(const Text('foo'));
+      await tester.pumpWidget(const Text('foo', textDirection: TextDirection.ltr));
 
       final String customDescription = 'custom description';
       TestFailure failure;
@@ -123,7 +128,7 @@ void main() {
 
   group('find.byWidgetPredicate', () {
     testWidgets('fails with a custom description in the message', (WidgetTester tester) async {
-      await tester.pumpWidget(const Text('foo'));
+      await tester.pumpWidget(const Text('foo', textDirection: TextDirection.ltr));
 
       final String customDescription = 'custom description';
       TestFailure failure;
@@ -140,33 +145,42 @@ void main() {
 
   group('find.descendant', () {
     testWidgets('finds one descendant', (WidgetTester tester) async {
-      await tester.pumpWidget(new Row(children: <Widget>[
-        new Column(children: <Text>[const Text('foo'), const Text('bar')])
-      ]));
+      await tester.pumpWidget(new Row(
+        textDirection: TextDirection.ltr,
+        children: <Widget>[
+          new Column(children: fooBarTexts),
+        ],
+      ));
 
       expect(find.descendant(
         of: find.widgetWithText(Row, 'foo'),
-        matching: find.text('bar')
+        matching: find.text('bar'),
       ), findsOneWidget);
     });
 
     testWidgets('finds two descendants with different ancestors', (WidgetTester tester) async {
-      await tester.pumpWidget(new Row(children: <Widget>[
-        new Column(children: <Text>[const Text('foo'), const Text('bar')]),
-        new Column(children: <Text>[const Text('foo'), const Text('bar')]),
-      ]));
+      await tester.pumpWidget(new Row(
+        textDirection: TextDirection.ltr,
+        children: <Widget>[
+          new Column(children: fooBarTexts),
+          new Column(children: fooBarTexts),
+        ],
+      ));
 
       expect(find.descendant(
         of: find.widgetWithText(Column, 'foo'),
-        matching: find.text('bar')
+        matching: find.text('bar'),
       ), findsNWidgets(2));
     });
 
     testWidgets('fails with a descriptive message', (WidgetTester tester) async {
-      await tester.pumpWidget(new Row(children: <Widget>[
-        new Column(children: <Text>[const Text('foo')]),
-        const Text('bar')
-      ]));
+      await tester.pumpWidget(new Row(
+        textDirection: TextDirection.ltr,
+        children: <Widget>[
+          new Column(children: <Text>[const Text('foo', textDirection: TextDirection.ltr)]),
+          const Text('bar', textDirection: TextDirection.ltr),
+        ],
+      ));
 
       TestFailure failure;
       try {
@@ -183,6 +197,95 @@ void main() {
         failure.message,
         contains('Actual: ?:<zero widgets with text "bar" that has ancestor(s) with type Column with text "foo"')
       );
+    });
+  });
+
+  group('find.ancestor', () {
+    testWidgets('finds one ancestor', (WidgetTester tester) async {
+      await tester.pumpWidget(new Row(
+        textDirection: TextDirection.ltr,
+        children: <Widget>[
+          new Column(children: fooBarTexts),
+        ],
+      ));
+
+      expect(find.ancestor(
+        of: find.text('bar'),
+        matching: find.widgetWithText(Row, 'foo'),
+      ), findsOneWidget);
+    });
+
+    testWidgets('finds two matching ancestors, one descendant', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        new Directionality(
+          textDirection: TextDirection.ltr,
+          child: new Row(
+            children: <Widget>[
+              new Row(children: fooBarTexts),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.ancestor(
+        of: find.text('bar'),
+        matching: find.byType(Row),
+      ), findsNWidgets(2));
+    });
+
+    testWidgets('fails with a descriptive message', (WidgetTester tester) async {
+      await tester.pumpWidget(new Row(
+        textDirection: TextDirection.ltr,
+        children: <Widget>[
+          new Column(children: <Text>[const Text('foo', textDirection: TextDirection.ltr)]),
+          const Text('bar', textDirection: TextDirection.ltr),
+        ],
+      ));
+
+      TestFailure failure;
+      try {
+        expect(find.ancestor(
+          of: find.text('bar'),
+          matching: find.widgetWithText(Column, 'foo'),
+        ), findsOneWidget);
+      } catch (e) {
+        failure = e;
+      }
+
+      expect(failure, isNotNull);
+      expect(
+        failure.message,
+        contains('Actual: ?:<zero widgets with type Column with text "foo" which is an ancestor of text "bar"'),
+      );
+    });
+
+    testWidgets('Root not matched by default', (WidgetTester tester) async {
+      await tester.pumpWidget(new Row(
+        textDirection: TextDirection.ltr,
+        children: <Widget>[
+          new Column(children: fooBarTexts),
+        ],
+      ));
+
+      expect(find.ancestor(
+        of: find.byType(Column),
+        matching: find.widgetWithText(Column, 'foo'),
+      ), findsNothing);
+    });
+
+    testWidgets('Match the root', (WidgetTester tester) async {
+      await tester.pumpWidget(new Row(
+        textDirection: TextDirection.ltr,
+        children: <Widget>[
+          new Column(children: fooBarTexts),
+        ],
+      ));
+
+      expect(find.descendant(
+        of: find.byType(Column),
+        matching: find.widgetWithText(Column, 'foo'),
+        matchRoot: true,
+      ), findsOneWidget);
     });
   });
 

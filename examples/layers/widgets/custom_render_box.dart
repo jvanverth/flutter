@@ -39,12 +39,21 @@ class RenderDots extends RenderConstrainedBox {
 }
 
 class Dots extends SingleChildRenderObjectWidget {
-  Dots({ Key key, Widget child }) : super(key: key, child: child);
+  const Dots({ Key key, Widget child }) : super(key: key, child: child);
 
   @override
   RenderDots createRenderObject(BuildContext context) => new RenderDots();
 }
 
 void main() {
-  runApp(new Dots(child: const Center(child: const Text('Touch me!'))));
+  runApp(
+    const Directionality(
+      textDirection: TextDirection.ltr,
+      child: const Dots(
+        child: const Center(
+          child: const Text('Touch me!'),
+        ),
+      ),
+    ),
+  );
 }

@@ -5,9 +5,9 @@
 import 'dart:ui' show Color, hashValues;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import 'colors.dart';
-import 'icon_theme_data.dart';
 import 'typography.dart';
 
 /// Describes the contrast needs of a color.
@@ -47,6 +47,7 @@ const Color _kDarkThemeSplashColor = const Color(0x40CCCCCC);
 /// Use this class to configure a [Theme] widget.
 ///
 /// To obtain the current theme, use [Theme.of].
+@immutable
 class ThemeData {
   /// Create a ThemeData given a set of preferred values.
   ///
@@ -106,10 +107,10 @@ class ThemeData {
     final bool isDark = brightness == Brightness.dark;
     primarySwatch ??= Colors.blue;
     primaryColor ??= isDark ? Colors.grey[900] : primarySwatch[500];
-    primaryColorBrightness ??= Brightness.dark;
+    primaryColorBrightness ??= estimateBrightnessForColor(primaryColor);
     final bool primaryIsDark = primaryColorBrightness == Brightness.dark;
     accentColor ??= isDark ? Colors.tealAccent[200] : primarySwatch[500];
-    accentColorBrightness ??= isDark ? Brightness.light : Brightness.dark;
+    accentColorBrightness ??= estimateBrightnessForColor(accentColor);
     final bool accentIsDark = accentColorBrightness == Brightness.dark;
     canvasColor ??= isDark ? Colors.grey[850] : Colors.grey[50];
     scaffoldBackgroundColor ??= canvasColor;
@@ -183,7 +184,7 @@ class ThemeData {
   /// This will rarely be used directly. It is used by [lerp] to
   /// create intermediate themes based on two themes created with the
   /// [new ThemeData] constructor.
-  ThemeData.raw({
+  const ThemeData.raw({
     @required this.brightness,
     @required this.primaryColor,
     @required this.primaryColorBrightness,
@@ -214,48 +215,58 @@ class ThemeData {
     @required this.primaryIconTheme,
     @required this.accentIconTheme,
     @required this.platform
-  }) {
-    assert(brightness != null);
-    assert(primaryColor != null);
-    assert(primaryColorBrightness != null);
-    assert(accentColor != null);
-    assert(accentColorBrightness != null);
-    assert(canvasColor != null);
-    assert(scaffoldBackgroundColor != null);
-    assert(cardColor != null);
-    assert(dividerColor != null);
-    assert(highlightColor != null);
-    assert(splashColor != null);
-    assert(selectedRowColor != null);
-    assert(unselectedWidgetColor != null);
-    assert(disabledColor != null);
-    assert(buttonColor != null);
-    assert(secondaryHeaderColor != null);
-    assert(textSelectionColor != null);
-    assert(textSelectionHandleColor != null);
-    assert(backgroundColor != null);
-    assert(dialogBackgroundColor != null);
-    assert(indicatorColor != null);
-    assert(hintColor != null);
-    assert(errorColor != null);
-    assert(textTheme != null);
-    assert(primaryTextTheme != null);
-    assert(accentTextTheme != null);
-    assert(iconTheme != null);
-    assert(primaryIconTheme != null);
-    assert(accentIconTheme != null);
-    assert(platform != null);
-  }
+  }) : assert(brightness != null),
+       assert(primaryColor != null),
+       assert(primaryColorBrightness != null),
+       assert(accentColor != null),
+       assert(accentColorBrightness != null),
+       assert(canvasColor != null),
+       assert(scaffoldBackgroundColor != null),
+       assert(cardColor != null),
+       assert(dividerColor != null),
+       assert(highlightColor != null),
+       assert(splashColor != null),
+       assert(selectedRowColor != null),
+       assert(unselectedWidgetColor != null),
+       assert(disabledColor != null),
+       assert(buttonColor != null),
+       assert(secondaryHeaderColor != null),
+       assert(textSelectionColor != null),
+       assert(textSelectionHandleColor != null),
+       assert(backgroundColor != null),
+       assert(dialogBackgroundColor != null),
+       assert(indicatorColor != null),
+       assert(hintColor != null),
+       assert(errorColor != null),
+       assert(textTheme != null),
+       assert(primaryTextTheme != null),
+       assert(accentTextTheme != null),
+       assert(iconTheme != null),
+       assert(primaryIconTheme != null),
+       assert(accentIconTheme != null),
+       assert(platform != null);
 
   /// A default light blue theme.
+  ///
+  /// This theme does not contain text geometry. Instead, it is expected that
+  /// this theme is localized using text geometry using [ThemeData.localize].
   factory ThemeData.light() => new ThemeData(brightness: Brightness.light);
 
   /// A default dark theme with a teal accent color.
+  ///
+  /// This theme does not contain text geometry. Instead, it is expected that
+  /// this theme is localized using text geometry using [ThemeData.localize].
   factory ThemeData.dark() => new ThemeData(brightness: Brightness.dark);
 
-  /// The default theme. Same as [new ThemeData.light].
+  /// The default color theme. Same as [new ThemeData.light].
   ///
   /// This is used by [Theme.of] when no theme has been specified.
+  ///
+  /// This theme does not contain text geometry. Instead, it is expected that
+  /// this theme is localized using text geometry using [ThemeData.localize].
+  ///
+  /// Most applications would use [Theme.of], which provides correct localized
+  /// text geometry.
   factory ThemeData.fallback() => new ThemeData.light();
 
   /// The brightness of the overall theme of the application. Used by widgets
@@ -328,7 +339,7 @@ class ThemeData {
   // ...this should be the "50-value of secondary app color".
   final Color secondaryHeaderColor;
 
-  /// The color of text selections in text fields, such as [Input].
+  /// The color of text selections in text fields, such as [TextField].
   final Color textSelectionColor;
 
   /// The color of the handles used to adjust what part of the text is currently selected.
@@ -345,10 +356,10 @@ class ThemeData {
   final Color indicatorColor;
 
   /// The color to use for hint text or placeholder text, e.g. in
-  /// [Input] fields.
+  /// [TextField] fields.
   final Color hintColor;
 
-  /// The color to use for input validation errors, e.g. in [Input] fields.
+  /// The color to use for input validation errors, e.g. in [TextField] fields.
   final Color errorColor;
 
   /// Text with a color that contrasts with the card and canvas colors.
@@ -441,39 +452,120 @@ class ThemeData {
     );
   }
 
+  // The number 5 was chosen without any real science or research behind it. It
+  // just seemed like a number that's not too big (we should be able to fit 5
+  // copies of ThemeData in memory comfortably) and not too small (most apps
+  // shouldn't have more than 5 theme/localization pairs).
+  static const int _localizedThemeDataCacheSize = 5;
+
+  /// Caches localized themes to speed up the [localize] method.
+  static final _FifoCache<_IdentityThemeDataCacheKey, ThemeData> _localizedThemeDataCache = new _FifoCache<_IdentityThemeDataCacheKey, ThemeData>(_localizedThemeDataCacheSize);
+
+  /// Returns a new theme built by merging the text geometry provided by the
+  /// [localTextGeometry] theme with the [baseTheme].
+  ///
+  /// For those text styles in the [baseTheme] whose [TextStyle.inherit] is set
+  /// to true, the returned theme's text styles inherit the geometric properties
+  /// of [localTextGeometry]. The resulting text styles' [TextStyle.inherit] is
+  /// set to those provided by [localTextGeometry].
+  static ThemeData localize(ThemeData baseTheme, TextTheme localTextGeometry) {
+    // WARNING: this method memoizes the result in a cache based on the
+    // previously seen baseTheme and localTextGeometry. Memoization is safe
+    // because all inputs and outputs of this function are deeply immutable, and
+    // the computations are referentially transparent. It only short-circuits
+    // the computation if the new inputs are identical() to the previous ones.
+    // It does not use the == operator, which performs a costly deep comparison.
+    //
+    // When changing this method, make sure the memoization logic is correct.
+    // Remember:
+    //
+    // There are only two hard things in Computer Science: cache invalidation
+    // and naming things. -- Phil Karlton
+    assert(baseTheme != null);
+    assert(localTextGeometry != null);
+
+    return _localizedThemeDataCache.putIfAbsent(
+      new _IdentityThemeDataCacheKey(baseTheme, localTextGeometry),
+      () {
+        return baseTheme.copyWith(
+          primaryTextTheme: localTextGeometry.merge(baseTheme.primaryTextTheme),
+          accentTextTheme: localTextGeometry.merge(baseTheme.accentTextTheme),
+          textTheme: localTextGeometry.merge(baseTheme.textTheme),
+        );
+      },
+    );
+  }
+
+  /// Determines whether the given [Color] is [Brightness.light] or
+  /// [Brightness.dark].
+  ///
+  /// This compares the luminosity of the given color to a threshold value that
+  /// matches the material design specification.
+  static Brightness estimateBrightnessForColor(Color color) {
+    final double relativeLuminance = color.computeLuminance();
+
+    // See <https://www.w3.org/TR/WCAG20/#contrast-ratiodef>
+    // The spec says to use kThreshold=0.0525, but Material Design appears to bias
+    // more towards using light text than WCAG20 recommends. Material Design spec
+    // doesn't say what value to use, but 0.15 seemed close to what the Material
+    // Design spec shows for its color palette on
+    // <https://material.io/guidelines/style/color.html#color-color-palette>.
+    const double kThreshold = 0.15;
+    if ((relativeLuminance + 0.05) * (relativeLuminance + 0.05) > kThreshold )
+      return Brightness.light;
+    return Brightness.dark;
+  }
+
   /// Linearly interpolate between two themes.
-  static ThemeData lerp(ThemeData begin, ThemeData end, double t) {
+  ///
+  /// The arguments must not be null.
+  ///
+  /// The `t` argument represents position on the timeline, with 0.0 meaning
+  /// that the interpolation has not started, returning `a` (or something
+  /// equivalent to `a`), 1.0 meaning that the interpolation has finished,
+  /// returning `b` (or something equivalent to `b`), and values in between
+  /// meaning that the interpolation is at the relevant point on the timeline
+  /// between `a` and `b`. The interpolation can be extrapolated beyond 0.0 and
+  /// 1.0, so negative values and values greater than 1.0 are valid (and can
+  /// easily be generated by curves such as [Curves.elasticInOut]).
+  ///
+  /// Values for `t` are usually obtained from an [Animation<double>], such as
+  /// an [AnimationController].
+  static ThemeData lerp(ThemeData a, ThemeData b, double t) {
+    assert(a != null);
+    assert(b != null);
+    assert(t != null);
     return new ThemeData.raw(
-      brightness: t < 0.5 ? begin.brightness : end.brightness,
-      primaryColor: Color.lerp(begin.primaryColor, end.primaryColor, t),
-      primaryColorBrightness: t < 0.5 ? begin.primaryColorBrightness : end.primaryColorBrightness,
-      canvasColor: Color.lerp(begin.canvasColor, end.canvasColor, t),
-      scaffoldBackgroundColor: Color.lerp(begin.scaffoldBackgroundColor, end.scaffoldBackgroundColor, t),
-      cardColor: Color.lerp(begin.cardColor, end.cardColor, t),
-      dividerColor: Color.lerp(begin.dividerColor, end.dividerColor, t),
-      highlightColor: Color.lerp(begin.highlightColor, end.highlightColor, t),
-      splashColor: Color.lerp(begin.splashColor, end.splashColor, t),
-      selectedRowColor: Color.lerp(begin.selectedRowColor, end.selectedRowColor, t),
-      unselectedWidgetColor: Color.lerp(begin.unselectedWidgetColor, end.unselectedWidgetColor, t),
-      disabledColor: Color.lerp(begin.disabledColor, end.disabledColor, t),
-      buttonColor: Color.lerp(begin.buttonColor, end.buttonColor, t),
-      secondaryHeaderColor: Color.lerp(begin.secondaryHeaderColor, end.secondaryHeaderColor, t),
-      textSelectionColor: Color.lerp(begin.textSelectionColor, end.textSelectionColor, t),
-      textSelectionHandleColor: Color.lerp(begin.textSelectionHandleColor, end.textSelectionHandleColor, t),
-      backgroundColor: Color.lerp(begin.backgroundColor, end.backgroundColor, t),
-      dialogBackgroundColor: Color.lerp(begin.dialogBackgroundColor, end.dialogBackgroundColor, t),
-      accentColor: Color.lerp(begin.accentColor, end.accentColor, t),
-      accentColorBrightness: t < 0.5 ? begin.accentColorBrightness : end.accentColorBrightness,
-      indicatorColor: Color.lerp(begin.indicatorColor, end.indicatorColor, t),
-      hintColor: Color.lerp(begin.hintColor, end.hintColor, t),
-      errorColor: Color.lerp(begin.errorColor, end.errorColor, t),
-      textTheme: TextTheme.lerp(begin.textTheme, end.textTheme, t),
-      primaryTextTheme: TextTheme.lerp(begin.primaryTextTheme, end.primaryTextTheme, t),
-      accentTextTheme: TextTheme.lerp(begin.accentTextTheme, end.accentTextTheme, t),
-      iconTheme: IconThemeData.lerp(begin.iconTheme, end.iconTheme, t),
-      primaryIconTheme: IconThemeData.lerp(begin.primaryIconTheme, end.primaryIconTheme, t),
-      accentIconTheme: IconThemeData.lerp(begin.accentIconTheme, end.accentIconTheme, t),
-      platform: t < 0.5 ? begin.platform : end.platform
+      brightness: t < 0.5 ? a.brightness : b.brightness,
+      primaryColor: Color.lerp(a.primaryColor, b.primaryColor, t),
+      primaryColorBrightness: t < 0.5 ? a.primaryColorBrightness : b.primaryColorBrightness,
+      canvasColor: Color.lerp(a.canvasColor, b.canvasColor, t),
+      scaffoldBackgroundColor: Color.lerp(a.scaffoldBackgroundColor, b.scaffoldBackgroundColor, t),
+      cardColor: Color.lerp(a.cardColor, b.cardColor, t),
+      dividerColor: Color.lerp(a.dividerColor, b.dividerColor, t),
+      highlightColor: Color.lerp(a.highlightColor, b.highlightColor, t),
+      splashColor: Color.lerp(a.splashColor, b.splashColor, t),
+      selectedRowColor: Color.lerp(a.selectedRowColor, b.selectedRowColor, t),
+      unselectedWidgetColor: Color.lerp(a.unselectedWidgetColor, b.unselectedWidgetColor, t),
+      disabledColor: Color.lerp(a.disabledColor, b.disabledColor, t),
+      buttonColor: Color.lerp(a.buttonColor, b.buttonColor, t),
+      secondaryHeaderColor: Color.lerp(a.secondaryHeaderColor, b.secondaryHeaderColor, t),
+      textSelectionColor: Color.lerp(a.textSelectionColor, b.textSelectionColor, t),
+      textSelectionHandleColor: Color.lerp(a.textSelectionHandleColor, b.textSelectionHandleColor, t),
+      backgroundColor: Color.lerp(a.backgroundColor, b.backgroundColor, t),
+      dialogBackgroundColor: Color.lerp(a.dialogBackgroundColor, b.dialogBackgroundColor, t),
+      accentColor: Color.lerp(a.accentColor, b.accentColor, t),
+      accentColorBrightness: t < 0.5 ? a.accentColorBrightness : b.accentColorBrightness,
+      indicatorColor: Color.lerp(a.indicatorColor, b.indicatorColor, t),
+      hintColor: Color.lerp(a.hintColor, b.hintColor, t),
+      errorColor: Color.lerp(a.errorColor, b.errorColor, t),
+      textTheme: TextTheme.lerp(a.textTheme, b.textTheme, t),
+      primaryTextTheme: TextTheme.lerp(a.primaryTextTheme, b.primaryTextTheme, t),
+      accentTextTheme: TextTheme.lerp(a.accentTextTheme, b.accentTextTheme, t),
+      iconTheme: IconThemeData.lerp(a.iconTheme, b.iconTheme, t),
+      primaryIconTheme: IconThemeData.lerp(a.primaryIconTheme, b.primaryIconTheme, t),
+      accentIconTheme: IconThemeData.lerp(a.accentIconTheme, b.accentIconTheme, t),
+      platform: t < 0.5 ? a.platform : b.platform,
     );
   }
 
@@ -554,4 +646,60 @@ class ThemeData {
 
   @override
   String toString() => '$runtimeType(${ platform != defaultTargetPlatform ? "$platform " : ''}$brightness $primaryColor etc...)';
+}
+
+class _IdentityThemeDataCacheKey {
+  _IdentityThemeDataCacheKey(this.baseTheme, this.localTextGeometry);
+
+  final ThemeData baseTheme;
+  final TextTheme localTextGeometry;
+
+  // Using XOR to make the hash function as fast as possible (e.g. Jenkins is
+  // noticeably slower).
+  @override
+  int get hashCode => identityHashCode(baseTheme) ^ identityHashCode(localTextGeometry);
+
+  @override
+  bool operator ==(Object other) {
+    // We are explicitly ignoring the possibility that the types might not
+    // match in the interests of speed.
+    final _IdentityThemeDataCacheKey otherKey = other;
+    return identical(baseTheme, otherKey.baseTheme) && identical(localTextGeometry, otherKey.localTextGeometry);
+  }
+}
+
+/// Cache of objects of limited size that uses the first in first out eviction
+/// strategy (a.k.a least recently inserted).
+///
+/// The key that was inserted before all other keys is evicted first, i.e. the
+/// one inserted least recently.
+class _FifoCache<K, V> {
+  _FifoCache(this._maximumSize)
+    : assert(_maximumSize != null && _maximumSize > 0);
+
+  /// In Dart the map literal uses a linked hash-map implementation, whose keys
+  /// are stored such that [Map.keys] returns them in the order they were
+  /// inserted.
+  final Map<K, V> _cache = <K, V>{};
+
+  /// Maximum number of entries to store in the cache.
+  ///
+  /// Once this many entries have been cached, the entry inserted least recently
+  /// is evicted when adding a new entry.
+  final int _maximumSize;
+
+  /// Returns the previously cached value for the given key, if available;
+  /// if not, calls the given callback to obtain it first.
+  ///
+  /// The arguments must not be null.
+  V putIfAbsent(K key, V loader()) {
+    assert(key != null);
+    assert(loader != null);
+    final V result = _cache[key];
+    if (result != null)
+      return result;
+    if (_cache.length == _maximumSize)
+      _cache.remove(_cache.keys.first);
+    return _cache[key] = loader();
+  }
 }

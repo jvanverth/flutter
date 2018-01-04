@@ -12,30 +12,22 @@ import 'home.dart';
 import 'item.dart';
 import 'updates.dart';
 
-final Map<String, WidgetBuilder> _kRoutes = new Map<String, WidgetBuilder>.fromIterable(
-  // For a different example of how to set up an application routing table,
-  // consider the Stocks example:
-  // https://github.com/flutter/flutter/blob/master/examples/stocks/lib/main.dart
-  kAllGalleryItems,
-  key: (GalleryItem item) => item.routeName,
-  value: (GalleryItem item) => item.buildRoute,
-);
-
 final ThemeData _kGalleryLightTheme = new ThemeData(
   brightness: Brightness.light,
-  primarySwatch: Colors.lightBlue,
+  primarySwatch: Colors.blue,
 );
 
 final ThemeData _kGalleryDarkTheme = new ThemeData(
   brightness: Brightness.dark,
-  primarySwatch: Colors.lightBlue,
+  primarySwatch: Colors.blue,
 );
 
 class GalleryApp extends StatefulWidget {
-  GalleryApp({
+  const GalleryApp({
     this.updateUrlFetcher,
     this.enablePerformanceOverlay: true,
     this.checkerboardRasterCacheImages: true,
+    this.checkerboardOffscreenLayers: true,
     this.onSendFeedback,
     Key key}
   ) : super(key: key);
@@ -45,6 +37,8 @@ class GalleryApp extends StatefulWidget {
   final bool enablePerformanceOverlay;
 
   final bool checkerboardRasterCacheImages;
+
+  final bool checkerboardOffscreenLayers;
 
   final VoidCallback onSendFeedback;
 
@@ -56,8 +50,12 @@ class GalleryAppState extends State<GalleryApp> {
   bool _useLightTheme = true;
   bool _showPerformanceOverlay = false;
   bool _checkerboardRasterCacheImages = false;
+  bool _checkerboardOffscreenLayers = false;
   double _timeDilation = 1.0;
   TargetPlatform _platform;
+
+  // A null value indicates "use system default".
+  double _textScaleFactor;
 
   Timer _timeDilationTimer;
 
@@ -72,6 +70,17 @@ class GalleryAppState extends State<GalleryApp> {
     _timeDilationTimer?.cancel();
     _timeDilationTimer = null;
     super.dispose();
+  }
+
+  Widget _applyScaleFactor(Widget child) {
+    return new Builder(
+      builder: (BuildContext context) => new MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaleFactor: _textScaleFactor,
+        ),
+        child: child,
+      ),
+    );
   }
 
   @override
@@ -93,6 +102,12 @@ class GalleryAppState extends State<GalleryApp> {
       onCheckerboardRasterCacheImagesChanged: widget.checkerboardRasterCacheImages ? (bool value) {
         setState(() {
           _checkerboardRasterCacheImages = value;
+        });
+      } : null,
+      checkerboardOffscreenLayers: _checkerboardOffscreenLayers,
+      onCheckerboardOffscreenLayersChanged: widget.checkerboardOffscreenLayers ? (bool value) {
+        setState(() {
+          _checkerboardOffscreenLayers = value;
         });
       } : null,
       onPlatformChanged: (TargetPlatform value) {
@@ -118,6 +133,12 @@ class GalleryAppState extends State<GalleryApp> {
           }
         });
       },
+      textScaleFactor: _textScaleFactor,
+      onTextScaleFactorChanged: (double value) {
+        setState(() {
+          _textScaleFactor = value;
+        });
+      },
       onSendFeedback: widget.onSendFeedback,
     );
 
@@ -128,14 +149,25 @@ class GalleryAppState extends State<GalleryApp> {
       );
     }
 
+    final Map<String, WidgetBuilder> _kRoutes = <String, WidgetBuilder>{};
+    for (GalleryItem item in kAllGalleryItems) {
+      // For a different example of how to set up an application routing table
+      // using named routes, consider the example in the Navigator class documentation:
+      // https://docs.flutter.io/flutter/widgets/Navigator-class.html
+      _kRoutes[item.routeName] = (BuildContext context) {
+        return _applyScaleFactor(item.buildRoute(context));
+      };
+    }
+
     return new MaterialApp(
       title: 'Flutter Gallery',
       color: Colors.grey,
       theme: (_useLightTheme ? _kGalleryLightTheme : _kGalleryDarkTheme).copyWith(platform: _platform ?? defaultTargetPlatform),
       showPerformanceOverlay: _showPerformanceOverlay,
       checkerboardRasterCacheImages: _checkerboardRasterCacheImages,
+      checkerboardOffscreenLayers: _checkerboardOffscreenLayers,
       routes: _kRoutes,
-      home: home,
+      home: _applyScaleFactor(home),
     );
   }
 }

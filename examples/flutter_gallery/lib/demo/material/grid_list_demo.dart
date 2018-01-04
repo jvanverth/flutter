@@ -14,11 +14,19 @@ enum GridDemoTileStyle {
 typedef void BannerTapCallback(Photo photo);
 
 const double _kMinFlingVelocity = 800.0;
+const String _kGalleryAssetsPackage = 'flutter_gallery_assets';
 
 class Photo {
-  Photo({ this.assetName, this.title, this.caption, this.isFavorite: false });
+  Photo({
+    this.assetName,
+    this.assetPackage,
+    this.title,
+    this.caption,
+    this.isFavorite: false,
+  });
 
   final String assetName;
+  final String assetPackage;
   final String title;
   final String caption;
 
@@ -29,7 +37,7 @@ class Photo {
 }
 
 class GridPhotoViewer extends StatefulWidget {
-  GridPhotoViewer({ Key key, this.photo }) : super(key: key);
+  const GridPhotoViewer({ Key key, this.photo }) : super(key: key);
 
   final Photo photo;
 
@@ -38,7 +46,7 @@ class GridPhotoViewer extends StatefulWidget {
 }
 
 class _GridTitleText extends StatelessWidget {
-  _GridTitleText(this.text);
+  const _GridTitleText(this.text);
 
   final String text;
 
@@ -46,7 +54,7 @@ class _GridTitleText extends StatelessWidget {
   Widget build(BuildContext context) {
     return new FittedBox(
       fit: BoxFit.scaleDown,
-      alignment: FractionalOffset.centerLeft,
+      alignment: Alignment.centerLeft,
       child: new Text(text),
     );
   }
@@ -130,7 +138,11 @@ class _GridPhotoViewerState extends State<GridPhotoViewer> with SingleTickerProv
           transform: new Matrix4.identity()
             ..translate(_offset.dx, _offset.dy)
             ..scale(_scale),
-          child: new Image.asset(widget.photo.assetName, fit: BoxFit.cover),
+          child: new Image.asset(
+            widget.photo.assetName,
+            package: widget.photo.assetPackage,
+            fit: BoxFit.cover,
+          ),
         ),
       ),
     );
@@ -143,11 +155,10 @@ class GridDemoPhotoItem extends StatelessWidget {
     @required this.photo,
     @required this.tileStyle,
     @required this.onBannerTap
-  }) : super(key: key) {
-    assert(photo != null && photo.isValid);
-    assert(tileStyle != null);
-    assert(onBannerTap != null);
-  }
+  }) : assert(photo != null && photo.isValid),
+       assert(tileStyle != null),
+       assert(onBannerTap != null),
+       super(key: key);
 
   final Photo photo;
   final GridDemoTileStyle tileStyle;
@@ -178,13 +189,17 @@ class GridDemoPhotoItem extends StatelessWidget {
       child: new Hero(
         key: new Key(photo.assetName),
         tag: photo.tag,
-        child: new Image.asset(photo.assetName, fit: BoxFit.cover)
+        child: new Image.asset(
+          photo.assetName,
+          package: photo.assetPackage,
+          fit: BoxFit.cover,
+        )
       )
     );
 
     final IconData icon = photo.isFavorite ? Icons.star : Icons.star_border;
 
-    switch(tileStyle) {
+    switch (tileStyle) {
       case GridDemoTileStyle.imageOnly:
         return image;
 
@@ -227,7 +242,7 @@ class GridDemoPhotoItem extends StatelessWidget {
 }
 
 class GridListDemo extends StatefulWidget {
-  GridListDemo({ Key key }) : super(key: key);
+  const GridListDemo({ Key key }) : super(key: key);
 
   static const String routeName = '/material/grid-list';
 
@@ -240,62 +255,74 @@ class GridListDemoState extends State<GridListDemo> {
 
   List<Photo> photos = <Photo>[
     new Photo(
-      assetName: 'packages/flutter_gallery_assets/landscape_0.jpg',
+      assetName: 'landscape_0.jpg',
+      assetPackage: _kGalleryAssetsPackage,
       title: 'Philippines',
       caption: 'Batad rice terraces',
     ),
     new Photo(
-      assetName: 'packages/flutter_gallery_assets/landscape_1.jpg',
+      assetName: 'landscape_1.jpg',
+      assetPackage: _kGalleryAssetsPackage,
       title: 'Italy',
       caption: 'Ceresole Reale',
     ),
     new Photo(
-      assetName: 'packages/flutter_gallery_assets/landscape_2.jpg',
+      assetName: 'landscape_2.jpg',
+      assetPackage: _kGalleryAssetsPackage,
       title: 'Somewhere',
       caption: 'Beautiful mountains',
     ),
     new Photo(
-      assetName: 'packages/flutter_gallery_assets/landscape_3.jpg',
+      assetName: 'landscape_3.jpg',
+      assetPackage: _kGalleryAssetsPackage,
       title: 'A place',
       caption: 'Beautiful hills',
     ),
     new Photo(
-      assetName: 'packages/flutter_gallery_assets/landscape_4.jpg',
+      assetName: 'landscape_4.jpg',
+      assetPackage: _kGalleryAssetsPackage,
       title: 'New Zealand',
       caption: 'View from the van',
     ),
     new Photo(
-      assetName: 'packages/flutter_gallery_assets/landscape_5.jpg',
+      assetName: 'landscape_5.jpg',
+      assetPackage: _kGalleryAssetsPackage,
       title: 'Autumn',
       caption: 'The golden season',
     ),
     new Photo(
-      assetName: 'packages/flutter_gallery_assets/landscape_6.jpg',
+      assetName: 'landscape_6.jpg',
+      assetPackage: _kGalleryAssetsPackage,
       title: 'Germany',
       caption: 'Englischer Garten',
     ),
     new Photo(
-      assetName: 'packages/flutter_gallery_assets/landscape_7.jpg',
+      assetName: 'landscape_7.jpg',
+      assetPackage: _kGalleryAssetsPackage,
       title: 'A country',
       caption: 'Grass fields',
     ),
     new Photo(
-      assetName: 'packages/flutter_gallery_assets/landscape_8.jpg',
+      assetName: 'landscape_8.jpg',
+      assetPackage: _kGalleryAssetsPackage,
       title: 'Mountain country',
       caption: 'River forest',
     ),
     new Photo(
-      assetName: 'packages/flutter_gallery_assets/landscape_9.jpg',
+      assetName: 'landscape_9.jpg',
+      assetPackage: _kGalleryAssetsPackage,
       title: 'Alpine place',
       caption: 'Green hills',
     ),
     new Photo(
-      assetName: 'packages/flutter_gallery_assets/landscape_10.jpg',
+      assetName: 'landscape_10.jpg',
+      assetPackage: _kGalleryAssetsPackage,
       title: 'Desert land',
       caption: 'Blue skies',
     ),
     new Photo(
-      assetName: 'packages/flutter_gallery_assets/landscape_11.jpg',
+      assetName: 'landscape_11.jpg',
+      assetPackage: _kGalleryAssetsPackage,
       title: 'Narnia',
       caption: 'Rocks and rivers',
     ),
@@ -317,15 +344,15 @@ class GridListDemoState extends State<GridListDemo> {
           new PopupMenuButton<GridDemoTileStyle>(
             onSelected: changeTileStyle,
             itemBuilder: (BuildContext context) => <PopupMenuItem<GridDemoTileStyle>>[
-              new PopupMenuItem<GridDemoTileStyle>(
+              const PopupMenuItem<GridDemoTileStyle>(
                 value: GridDemoTileStyle.imageOnly,
                 child: const Text('Image only'),
               ),
-              new PopupMenuItem<GridDemoTileStyle>(
+              const PopupMenuItem<GridDemoTileStyle>(
                 value: GridDemoTileStyle.oneLine,
                 child: const Text('One line'),
               ),
-              new PopupMenuItem<GridDemoTileStyle>(
+              const PopupMenuItem<GridDemoTileStyle>(
                 value: GridDemoTileStyle.twoLine,
                 child: const Text('Two line'),
               ),
@@ -336,27 +363,31 @@ class GridListDemoState extends State<GridListDemo> {
       body: new Column(
         children: <Widget>[
           new Expanded(
-            child: new GridView.count(
-              crossAxisCount: (orientation == Orientation.portrait) ? 2 : 3,
-              mainAxisSpacing: 4.0,
-              crossAxisSpacing: 4.0,
-              padding: const EdgeInsets.all(4.0),
-              childAspectRatio: (orientation == Orientation.portrait) ? 1.0 : 1.3,
-              children: photos.map((Photo photo) {
-                return new GridDemoPhotoItem(
-                  photo: photo,
-                  tileStyle: _tileStyle,
-                  onBannerTap: (Photo photo) {
-                    setState(() {
-                      photo.isFavorite = !photo.isFavorite;
-                    });
-                  }
-                );
-              }).toList(),
-            )
-          )
-        ]
-      )
+            child: new SafeArea(
+              top: false,
+              bottom: false,
+              child: new GridView.count(
+                crossAxisCount: (orientation == Orientation.portrait) ? 2 : 3,
+                mainAxisSpacing: 4.0,
+                crossAxisSpacing: 4.0,
+                padding: const EdgeInsets.all(4.0),
+                childAspectRatio: (orientation == Orientation.portrait) ? 1.0 : 1.3,
+                children: photos.map((Photo photo) {
+                  return new GridDemoPhotoItem(
+                    photo: photo,
+                    tileStyle: _tileStyle,
+                    onBannerTap: (Photo photo) {
+                      setState(() {
+                        photo.isFavorite = !photo.isFavorite;
+                      });
+                    }
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

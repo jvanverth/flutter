@@ -5,15 +5,15 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
 
-class TestScrollPosition extends ScrollPosition {
+class TestScrollPosition extends ScrollPositionWithSingleContext {
   TestScrollPosition({
     ScrollPhysics physics,
-    AbstractScrollState state,
+    ScrollContext state,
     double initialPixels: 0.0,
     ScrollPosition oldPosition,
   }) : super(
     physics: physics,
-    state: state,
+    context: state,
     initialPixels: initialPixels,
     oldPosition: oldPosition,
   );
@@ -21,10 +21,10 @@ class TestScrollPosition extends ScrollPosition {
 
 class TestScrollController extends ScrollController {
   @override
-  ScrollPosition createScrollPosition(ScrollPhysics physics, AbstractScrollState state, ScrollPosition oldPosition) {
+  ScrollPosition createScrollPosition(ScrollPhysics physics, ScrollContext context, ScrollPosition oldPosition) {
     return new TestScrollPosition(
       physics: physics,
-      state: state,
+      state: context,
       initialPixels: initialScrollOffset,
       oldPosition: oldPosition,
     );
@@ -36,9 +36,7 @@ void main() {
     await tester.pumpWidget(new SingleChildScrollView(
       child: new Container(
         height: 2000.0,
-        decoration: const BoxDecoration(
-          backgroundColor: const Color(0xFF00FF00),
-        ),
+        color: const Color(0xFF00FF00),
       ),
     ));
 
@@ -56,9 +54,7 @@ void main() {
     await tester.pumpWidget(new SingleChildScrollView(
       child: new Container(
         height: 2000.0,
-        decoration: const BoxDecoration(
-          backgroundColor: const Color(0xFF00FF00),
-        ),
+        color: const Color(0xFF00FF00),
       ),
     ));
 
@@ -66,9 +62,7 @@ void main() {
       controller: controller,
       child: new Container(
         height: 2000.0,
-        decoration: const BoxDecoration(
-          backgroundColor: const Color(0xFF00FF00),
-        ),
+        color: const Color(0xFF00FF00),
       ),
     ));
 
@@ -84,9 +78,7 @@ void main() {
         primary: true,
         child: new Container(
           height: 2000.0,
-          decoration: const BoxDecoration(
-            backgroundColor: const Color(0xFF00FF00),
-          ),
+          color: const Color(0xFF00FF00),
         ),
       ),
     ));
@@ -107,9 +99,7 @@ void main() {
             return new SingleChildScrollView(
               child: new Container(
                 height: 2000.0,
-                decoration: const BoxDecoration(
-                  backgroundColor: const Color(0xFF00FF00),
-                ),
+                color: const Color(0xFF00FF00),
               ),
             );
           },
@@ -126,9 +116,7 @@ void main() {
               controller: controller,
               child: new Container(
                 height: 2000.0,
-                decoration: const BoxDecoration(
-                  backgroundColor: const Color(0xFF00FF00),
-                ),
+                color: const Color(0xFF00FF00),
               ),
             );
           },
@@ -158,16 +146,21 @@ void main() {
   testWidgets('Nested scrollables have a null PrimaryScrollController', (WidgetTester tester) async {
     const Key innerKey = const Key('inner');
     final ScrollController primaryScrollController = new ScrollController();
-    await tester.pumpWidget(new PrimaryScrollController(
-      controller: primaryScrollController,
-      child: new SingleChildScrollView(
-        primary: true,
-        child: new Container(
-          constraints: const BoxConstraints(maxHeight: 200.0),
-          child: new ListView(key: innerKey, primary: true),
+    await tester.pumpWidget(
+      new Directionality(
+        textDirection: TextDirection.ltr,
+        child: new PrimaryScrollController(
+          controller: primaryScrollController,
+          child: new SingleChildScrollView(
+            primary: true,
+            child: new Container(
+              constraints: const BoxConstraints(maxHeight: 200.0),
+              child: new ListView(key: innerKey, primary: true),
+            ),
+          ),
         ),
       ),
-    ));
+    );
 
     final Scrollable innerScrollable = tester.widget(
       find.descendant(

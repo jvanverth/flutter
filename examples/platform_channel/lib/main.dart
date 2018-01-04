@@ -13,10 +13,10 @@ class PlatformChannel extends StatefulWidget {
 }
 
 class _PlatformChannelState extends State<PlatformChannel> {
-  static const PlatformMethodChannel methodChannel =
-      const PlatformMethodChannel('samples.flutter.io/battery');
-  static const PlatformEventChannel eventChannel =
-      const PlatformEventChannel('samples.flutter.io/charging');
+  static const MethodChannel methodChannel =
+      const MethodChannel('samples.flutter.io/battery');
+  static const EventChannel eventChannel =
+      const EventChannel('samples.flutter.io/charging');
 
   String _batteryLevel = 'Battery level: unknown.';
   String _chargingStatus = 'Battery status: unknown.';
@@ -27,7 +27,7 @@ class _PlatformChannelState extends State<PlatformChannel> {
       final int result = await methodChannel.invokeMethod('getBatteryLevel');
       batteryLevel = 'Battery level: $result%.';
     } on PlatformException {
-      batteryLevel = "Failed to get battery level.";
+      batteryLevel = 'Failed to get battery level.';
     }
     setState(() {
       _batteryLevel = batteryLevel;
@@ -40,7 +40,7 @@ class _PlatformChannelState extends State<PlatformChannel> {
     eventChannel.receiveBroadcastStream().listen(_onEvent, onError: _onError);
   }
 
-  void _onEvent(String event) {
+  void _onEvent(Object event) {
     setState(() {
       _chargingStatus =
           "Battery status: ${event == 'charging' ? '' : 'dis'}charging.";
@@ -49,7 +49,7 @@ class _PlatformChannelState extends State<PlatformChannel> {
 
   void _onError(PlatformException error) {
     setState(() {
-      _chargingStatus = "Battery status: unknown.";
+      _chargingStatus = 'Battery status: unknown.';
     });
   }
 
@@ -80,5 +80,5 @@ class _PlatformChannelState extends State<PlatformChannel> {
 }
 
 void main() {
-  runApp(new PlatformChannel());
+  runApp(new MaterialApp(home: new PlatformChannel()));
 }

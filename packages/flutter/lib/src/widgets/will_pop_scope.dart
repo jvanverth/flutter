@@ -5,6 +5,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'framework.dart';
+import 'navigator.dart';
 import 'routes.dart';
 
 /// Registers a callback to veto attempts by the user to dismiss the enclosing
@@ -12,29 +13,30 @@ import 'routes.dart';
 ///
 /// See also:
 ///
-///  * [ModalRoute.addScopedWillPopCallback] and [ModalScope.removeScopedWillPopCallback],
+///  * [ModalRoute.addScopedWillPopCallback] and [ModalRoute.removeScopedWillPopCallback],
 ///    which this widget uses to register and unregister [onWillPop].
 class WillPopScope extends StatefulWidget {
   /// Creates a widget that registers a callback to veto attempts by the user to
   /// dismiss the enclosing [ModalRoute].
   ///
   /// The [child] argument must not be null.
-  WillPopScope({
+  const WillPopScope({
     Key key,
     @required this.child,
     @required this.onWillPop,
-  }) : super(key: key) {
-    assert(child != null);
-  }
+  }) : assert(child != null),
+       super(key: key);
 
   /// The widget below this widget in the tree.
+  ///
+  /// {@macro flutter.widgets.child}
   final Widget child;
 
   /// Called to veto attempts by the user to dismiss the enclosing [ModalRoute].
   ///
   /// If the callback returns a Future that resolves to false, the enclosing
   /// route will not be popped.
-  WillPopCallback onWillPop;
+  final WillPopCallback onWillPop;
 
   @override
   _WillPopScopeState createState() => new _WillPopScopeState();
@@ -55,6 +57,7 @@ class _WillPopScopeState extends State<WillPopScope> {
 
   @override
   void didUpdateWidget(WillPopScope oldWidget) {
+    super.didUpdateWidget(oldWidget);
     assert(_route == ModalRoute.of(context));
     if (widget.onWillPop != oldWidget.onWillPop && _route != null) {
       if (oldWidget.onWillPop != null)

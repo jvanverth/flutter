@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 class TestTransition extends AnimatedWidget {
-  TestTransition({
+  const TestTransition({
     Key key,
     this.childFirstHalf,
     this.childSecondHalf,
@@ -19,7 +19,7 @@ class TestTransition extends AnimatedWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Animation<double> animation = this.listenable;
+    final Animation<double> animation = listenable;
     if (animation.value >= 0.5)
       return childSecondHalf;
     return childFirstHalf;
@@ -27,7 +27,7 @@ class TestTransition extends AnimatedWidget {
 }
 
 class TestRoute<T> extends PageRoute<T> {
-  TestRoute({ this.child, RouteSettings settings }) : super(settings: settings);
+  TestRoute({ this.child, RouteSettings settings, this.barrierColor }) : super(settings: settings);
 
   final Widget child;
 
@@ -35,7 +35,10 @@ class TestRoute<T> extends PageRoute<T> {
   Duration get transitionDuration => const Duration(milliseconds: 150);
 
   @override
-  Color get barrierColor => null;
+  final Color barrierColor;
+
+  @override
+  String get barrierLabel => null;
 
   @override
   bool get maintainState => false;
@@ -178,6 +181,33 @@ void main() {
     await tester.pump(kFourTenthsOfTheTransitionDuration);
     expect(state(), equals('G')); // transition 1->4 is done
     expect(state(skipOffstage: false), equals('G')); // route 1 is not around any more
+
+  });
+
+  testWidgets('Check onstage/offstage handling of barriers around transitions', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      new MaterialApp(
+        onGenerateRoute: (RouteSettings settings) {
+          switch (settings.name) {
+            case '/': return new TestRoute<Null>(settings: settings, child: const Text('A'));
+            case '/1': return new TestRoute<Null>(settings: settings, barrierColor: const Color(0xFFFFFF00), child: const Text('B'));
+          }
+        }
+      )
+    );
+    expect(find.byType(ModalBarrier), findsOneWidget);
+
+    tester.state<NavigatorState>(find.byType(Navigator)).pushNamed('/1');
+    expect(find.byType(ModalBarrier), findsOneWidget);
+
+    await tester.pump();
+    expect(find.byType(ModalBarrier), findsNWidgets(2));
+    expect(tester.widget<ModalBarrier>(find.byType(ModalBarrier).first).color, isNull);
+    expect(tester.widget<ModalBarrier>(find.byType(ModalBarrier).last).color, isNull);
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(ModalBarrier), findsOneWidget);
+    expect(tester.widget<ModalBarrier>(find.byType(ModalBarrier)).color, const Color(0xFFFFFF00));
 
   });
 }

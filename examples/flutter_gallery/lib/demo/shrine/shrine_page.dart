@@ -15,17 +15,16 @@ enum ShrineAction {
 }
 
 class ShrinePage extends StatefulWidget {
-  ShrinePage({
+  const ShrinePage({
     Key key,
     @required this.scaffoldKey,
     @required this.body,
     this.floatingActionButton,
     this.products,
     this.shoppingCart
-  }) : super(key: key) {
-    assert(body != null);
-    assert(scaffoldKey != null);
-  }
+  }) : assert(body != null),
+       assert(scaffoldKey != null),
+       super(key: key);
 
   final GlobalKey<ScaffoldState> scaffoldKey;
   final Widget body;
@@ -39,10 +38,10 @@ class ShrinePage extends StatefulWidget {
 
 /// Defines the Scaffold, AppBar, etc that the demo pages have in common.
 class ShrinePageState extends State<ShrinePage> {
-  int _appBarElevation = 0;
+  double _appBarElevation = 0.0;
 
   bool _handleScrollNotification(ScrollNotification notification) {
-    final int elevation = notification.metrics.extentBefore <= 0.0 ? 0 : 1;
+    final double elevation = notification.metrics.extentBefore <= 0.0 ? 0.0 : 1.0;
     if (elevation != _appBarElevation) {
       setState(() {
         _appBarElevation = elevation;
@@ -82,7 +81,7 @@ class ShrinePageState extends State<ShrinePage> {
 
   void _emptyCart() {
     widget.shoppingCart.clear();
-    widget.scaffoldKey.currentState.showSnackBar(new SnackBar(content: const Text('Shopping cart is empty')));
+    widget.scaffoldKey.currentState.showSnackBar(const SnackBar(content: const Text('Shopping cart is empty')));
   }
 
   @override
@@ -102,9 +101,8 @@ class ShrinePageState extends State<ShrinePage> {
             )
           )
         ),
-        title: new Center(
-          child: new Text('SHRINE', style: ShrineTheme.of(context).appBarTitleStyle)
-        ),
+        title: new Text('SHRINE', style: ShrineTheme.of(context).appBarTitleStyle),
+        centerTitle: true,
         actions: <Widget>[
           new IconButton(
             icon: const Icon(Icons.shopping_cart),
@@ -113,15 +111,15 @@ class ShrinePageState extends State<ShrinePage> {
           ),
           new PopupMenuButton<ShrineAction>(
             itemBuilder: (BuildContext context) => <PopupMenuItem<ShrineAction>>[
-              new PopupMenuItem<ShrineAction>(
+              const PopupMenuItem<ShrineAction>(
                 value: ShrineAction.sortByPrice,
                 child: const Text('Sort by price')
               ),
-              new PopupMenuItem<ShrineAction>(
+              const PopupMenuItem<ShrineAction>(
                 value: ShrineAction.sortByProduct,
                 child: const Text('Sort by product')
               ),
-              new PopupMenuItem<ShrineAction>(
+              const PopupMenuItem<ShrineAction>(
                 value: ShrineAction.emptyCart,
                 child: const Text('Empty shopping cart')
               )

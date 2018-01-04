@@ -4,23 +4,28 @@
 
 import 'dart:async';
 import 'dart:developer';
+import 'dart:typed_data';
 import 'dart:ui' as ui show window;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 import 'box.dart';
 import 'debug.dart';
 import 'object.dart';
-import 'semantics.dart';
 import 'view.dart';
 
 export 'package:flutter/gestures.dart' show HitTestResult;
 
 /// The glue between the render tree and the Flutter engine.
-abstract class RendererBinding extends BindingBase implements SchedulerBinding, ServicesBinding, HitTestable {
+abstract class RendererBinding extends BindingBase with ServicesBinding, SchedulerBinding, HitTestable {
+  // This class is intended to be used as a mixin, and should not be
+  // extended directly.
+  factory RendererBinding._() => null;
+
   @override
   void initInstances() {
     super.initInstances();
@@ -32,6 +37,7 @@ abstract class RendererBinding extends BindingBase implements SchedulerBinding, 
     );
     ui.window
       ..onMetricsChanged = handleMetricsChanged
+      ..onTextScaleFactorChanged = handleTextScaleFactorChanged
       ..onSemanticsEnabledChanged = _handleSemanticsEnabledChanged
       ..onSemanticsAction = _handleSemanticsAction;
     initRenderView();
@@ -49,7 +55,7 @@ abstract class RendererBinding extends BindingBase implements SchedulerBinding, 
     super.initServiceExtensions();
 
     assert(() {
-      // this service extension only works in checked mode
+      // these service extensions only work in checked mode
       registerBoolServiceExtension(
         name: 'debugPaint',
         getter: () async => debugPaintSizeEnabled,
@@ -60,29 +66,49 @@ abstract class RendererBinding extends BindingBase implements SchedulerBinding, 
           return _forceRepaint();
         }
       );
+      registerBoolServiceExtension(
+          name: 'debugPaintBaselinesEnabled',
+          getter: () async => debugPaintBaselinesEnabled,
+          setter: (bool value) {
+          if (debugPaintBaselinesEnabled == value)
+            return new Future<Null>.value();
+          debugPaintBaselinesEnabled = value;
+          return _forceRepaint();
+        }
+      );
+      registerBoolServiceExtension(
+          name: 'repaintRainbow',
+          getter: () async => debugRepaintRainbowEnabled,
+          setter: (bool value) {
+            final bool repaint = debugRepaintRainbowEnabled && !value;
+            debugRepaintRainbowEnabled = value;
+            if (repaint)
+              return _forceRepaint();
+            return new Future<Null>.value();
+          }
+      );
       return true;
-    });
+    }());
 
     registerSignalServiceExtension(
       name: 'debugDumpRenderTree',
       callback: () { debugDumpRenderTree(); return debugPrintDone; }
     );
 
-    assert(() {
-      // this service extension only works in checked mode
-      registerBoolServiceExtension(
-        name: 'repaintRainbow',
-        getter: () async => debugRepaintRainbowEnabled,
-        setter: (bool value) {
-          final bool repaint = debugRepaintRainbowEnabled && !value;
-          debugRepaintRainbowEnabled = value;
-          if (repaint)
-            return _forceRepaint();
-          return new Future<Null>.value();
-        }
-      );
-      return true;
-    });
+    registerSignalServiceExtension(
+      name: 'debugDumpLayerTree',
+      callback: () { debugDumpLayerTree(); return debugPrintDone; }
+    );
+
+    registerSignalServiceExtension(
+      name: 'debugDumpSemanticsTreeInTraversalOrder',
+      callback: () { debugDumpSemanticsTree(DebugSemanticsDumpOrder.traversal); return debugPrintDone; }
+    );
+
+    registerSignalServiceExtension(
+      name: 'debugDumpSemanticsTreeInInverseHitTestOrder',
+      callback: () { debugDumpSemanticsTree(DebugSemanticsDumpOrder.inverseHitTest); return debugPrintDone; }
+    );
   }
 
   /// Creates a [RenderView] object to be the root of the
@@ -113,11 +139,19 @@ abstract class RendererBinding extends BindingBase implements SchedulerBinding, 
 
   /// Called when the system metrics change.
   ///
-  /// See [ui.window.onMetricsChanged].
+  /// See [Window.onMetricsChanged].
+  @protected
   void handleMetricsChanged() {
     assert(renderView != null);
     renderView.configuration = createViewConfiguration();
+    scheduleForcedFrame();
   }
+
+  /// Called when the platform text scale factor changes.
+  ///
+  /// See [Window.onTextScaleFactorChanged].
+  @protected
+  void handleTextScaleFactorChanged() { }
 
   /// Returns a [ViewConfiguration] configured for the [RenderView] based on the
   /// current environment.
@@ -133,7 +167,7 @@ abstract class RendererBinding extends BindingBase implements SchedulerBinding, 
     final double devicePixelRatio = ui.window.devicePixelRatio;
     return new ViewConfiguration(
       size: ui.window.physicalSize / devicePixelRatio,
-      devicePixelRatio: devicePixelRatio
+      devicePixelRatio: devicePixelRatio,
     );
   }
 
@@ -154,8 +188,12 @@ abstract class RendererBinding extends BindingBase implements SchedulerBinding, 
     }
   }
 
-  void _handleSemanticsAction(int id, SemanticsAction action) {
-    _pipelineOwner.semanticsOwner?.performAction(id, action);
+  void _handleSemanticsAction(int id, SemanticsAction action, ByteData args) {
+    _pipelineOwner.semanticsOwner?.performAction(
+      id,
+      action,
+      args != null ? const StandardMessageCodec().decodeMessage(args) : null,
+    );
   }
 
   void _handleSemanticsOwnerCreated() {
@@ -167,60 +205,67 @@ abstract class RendererBinding extends BindingBase implements SchedulerBinding, 
   }
 
   void _handlePersistentFrameCallback(Duration timeStamp) {
-    beginFrame();
+    drawFrame();
   }
 
   /// Pump the rendering pipeline to generate a frame.
   ///
-  /// This method is called by [handleBeginFrame], which itself is called
+  /// This method is called by [handleDrawFrame], which itself is called
   /// automatically by the engine when when it is time to lay out and paint a
   /// frame.
   ///
   /// Each frame consists of the following phases:
   ///
   /// 1. The animation phase: The [handleBeginFrame] method, which is registered
-  /// with [ui.window.onBeginFrame], invokes all the transient frame callbacks
-  /// registered with [scheduleFrameCallback] and [addFrameCallback], in
-  /// registration order. This includes all the [Ticker] instances that are
-  /// driving [AnimationController] objects, which means all of the active
-  /// [Animation] objects tick at this point.
+  /// with [Window.onBeginFrame], invokes all the transient frame callbacks
+  /// registered with [scheduleFrameCallback], in registration order. This
+  /// includes all the [Ticker] instances that are driving [AnimationController]
+  /// objects, which means all of the active [Animation] objects tick at this
+  /// point.
   ///
-  /// [handleBeginFrame] then invokes all the persistent frame callbacks, of which
-  /// the most notable is this method, [beginFrame], which proceeds as follows:
+  /// 2. Microtasks: After [handleBeginFrame] returns, any microtasks that got
+  /// scheduled by transient frame callbacks get to run. This typically includes
+  /// callbacks for futures from [Ticker]s and [AnimationController]s that
+  /// completed this frame.
   ///
-  /// 2. The layout phase: All the dirty [RenderObject]s in the system are laid
+  /// After [handleBeginFrame], [handleDrawFrame], which is registered with
+  /// [Window.onDrawFrame], is called, which invokes all the persistent frame
+  /// callbacks, of which the most notable is this method, [drawFrame], which
+  /// proceeds as follows:
+  ///
+  /// 3. The layout phase: All the dirty [RenderObject]s in the system are laid
   /// out (see [RenderObject.performLayout]). See [RenderObject.markNeedsLayout]
   /// for further details on marking an object dirty for layout.
   ///
-  /// 3. The compositing bits phase: The compositing bits on any dirty
+  /// 4. The compositing bits phase: The compositing bits on any dirty
   /// [RenderObject] objects are updated. See
   /// [RenderObject.markNeedsCompositingBitsUpdate].
   ///
-  /// 4. The paint phase: All the dirty [RenderObject]s in the system are
+  /// 5. The paint phase: All the dirty [RenderObject]s in the system are
   /// repainted (see [RenderObject.paint]). This generates the [Layer] tree. See
   /// [RenderObject.markNeedsPaint] for further details on marking an object
   /// dirty for paint.
   ///
-  /// 5. The compositing phase: The layer tree is turned into a [ui.Scene] and
+  /// 6. The compositing phase: The layer tree is turned into a [Scene] and
   /// sent to the GPU.
   ///
-  /// 6. The semantics phase: All the dirty [RenderObject]s in the system have
-  /// their semantics updated (see [RenderObject.SemanticsAnnotator]). This
+  /// 7. The semantics phase: All the dirty [RenderObject]s in the system have
+  /// their semantics updated (see [RenderObject.semanticsAnnotator]). This
   /// generates the [SemanticsNode] tree. See
   /// [RenderObject.markNeedsSemanticsUpdate] for further details on marking an
   /// object dirty for semantics.
   ///
-  /// For more details on steps 2-6, see [PipelineOwner].
+  /// For more details on steps 3-7, see [PipelineOwner].
   ///
-  /// 7. The finalization phase: After [beginFrame] returns, [handleBeginFrame]
-  /// then invokes post-frame callbacks (registered with [addPostFrameCallback].
+  /// 8. The finalization phase: After [drawFrame] returns, [handleDrawFrame]
+  /// then invokes post-frame callbacks (registered with [addPostFrameCallback]).
   ///
   /// Some bindings (for example, the [WidgetsBinding]) add extra steps to this
-  /// list (for example, see [WidgetsBinding.beginFrame]).
+  /// list (for example, see [WidgetsBinding.drawFrame]).
   //
   // When editing the above, also update widgets/binding.dart's copy.
   @protected
-  void beginFrame() {
+  void drawFrame() {
     assert(renderView != null);
     pipelineOwner.flushLayout();
     pipelineOwner.flushCompositingBits();
@@ -230,15 +275,15 @@ abstract class RendererBinding extends BindingBase implements SchedulerBinding, 
   }
 
   @override
-  Future<Null> reassembleApplication() async {
-    await super.reassembleApplication();
-    Timeline.startSync('Dirty Render Tree');
+  Future<Null> performReassemble() async {
+    await super.performReassemble();
+    Timeline.startSync('Dirty Render Tree', arguments: timelineWhitelistArguments);
     try {
       renderView.reassemble();
     } finally {
       Timeline.finishSync();
     }
-    handleBeginFrame(null);
+    scheduleWarmUpFrame();
     await endOfFrame;
   }
 
@@ -263,19 +308,22 @@ abstract class RendererBinding extends BindingBase implements SchedulerBinding, 
 
 /// Prints a textual representation of the entire render tree.
 void debugDumpRenderTree() {
-  debugPrint(RendererBinding.instance?.renderView?.toStringDeep());
+  debugPrint(RendererBinding.instance?.renderView?.toStringDeep() ?? 'Render tree unavailable.');
 }
 
 /// Prints a textual representation of the entire layer tree.
 void debugDumpLayerTree() {
-  debugPrint(RendererBinding.instance?.renderView?.debugLayer?.toStringDeep());
+  debugPrint(RendererBinding.instance?.renderView?.debugLayer?.toStringDeep() ?? 'Layer tree unavailable.');
 }
 
 /// Prints a textual representation of the entire semantics tree.
 /// This will only work if there is a semantics client attached.
-/// Otherwise, the tree is empty and this will print "null".
-void debugDumpSemanticsTree() {
-  debugPrint(RendererBinding.instance?.renderView?.debugSemantics?.toStringDeep() ?? 'Semantics not collected.');
+/// Otherwise, a notice that no semantics are available will be printed.
+///
+/// The order in which the children of a [SemanticsNode] will be printed is
+/// controlled by the [childOrder] parameter.
+void debugDumpSemanticsTree(DebugSemanticsDumpOrder childOrder) {
+  debugPrint(RendererBinding.instance?.renderView?.debugSemantics?.toStringDeep(childOrder: childOrder) ?? 'Semantics not collected.');
 }
 
 /// A concrete binding for applications that use the Rendering framework
@@ -287,7 +335,7 @@ void debugDumpSemanticsTree() {
 /// that layer's binding.
 ///
 /// See also [BindingBase].
-class RenderingFlutterBinding extends BindingBase with SchedulerBinding, GestureBinding, ServicesBinding, RendererBinding {
+class RenderingFlutterBinding extends BindingBase with GestureBinding, ServicesBinding, SchedulerBinding, RendererBinding {
   /// Creates a binding for the rendering layer.
   ///
   /// The `root` render box is attached directly to the [renderView] and is

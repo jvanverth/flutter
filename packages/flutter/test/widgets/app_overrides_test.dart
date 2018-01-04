@@ -17,6 +17,9 @@ class TestRoute<T> extends PageRoute<T> {
   Color get barrierColor => null;
 
   @override
+  String get barrierLabel => null;
+
+  @override
   bool get maintainState => false;
 
   @override
@@ -26,12 +29,14 @@ class TestRoute<T> extends PageRoute<T> {
 }
 
 Future<Null> pumpApp(WidgetTester tester) async {
-  await tester.pumpWidget(new WidgetsApp(
-    color: const Color(0xFF333333),
-    onGenerateRoute: (RouteSettings settings) {
-      return new TestRoute<Null>(settings: settings, child: new Container());
-    },
-  ));
+  await tester.pumpWidget(
+    new WidgetsApp(
+      color: const Color(0xFF333333),
+      onGenerateRoute: (RouteSettings settings) {
+        return new TestRoute<Null>(settings: settings, child: new Container());
+      },
+    ),
+  );
 }
 
 void main() {

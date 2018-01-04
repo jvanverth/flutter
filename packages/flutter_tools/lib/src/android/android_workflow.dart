@@ -4,16 +4,20 @@
 
 import 'dart:async';
 
+import '../base/context.dart';
 import '../base/file_system.dart';
 import '../base/io.dart';
 import '../base/os.dart';
 import '../base/platform.dart';
 import '../base/process.dart';
 import '../base/process_manager.dart';
+import '../base/utils.dart';
 import '../doctor.dart';
 import '../globals.dart';
 import 'android_sdk.dart';
 import 'android_studio.dart' as android_studio;
+
+AndroidWorkflow get androidWorkflow => context.putIfAbsent(AndroidWorkflow, () => new AndroidWorkflow());
 
 class AndroidWorkflow extends DoctorValidator implements Workflow {
   AndroidWorkflow() : super('Android toolchain - develop for Android devices');
@@ -32,7 +36,7 @@ class AndroidWorkflow extends DoctorValidator implements Workflow {
   static const String _kJdkDownload = 'https://www.oracle.com/technetwork/java/javase/downloads/';
 
   /// First try Java bundled with Android Studio, then sniff JAVA_HOME, then fallback to PATH.
-  String _findJavaBinary() {
+  static String _findJavaBinary() {
 
     if (android_studio.javaPath != null)
       return fs.path.join(android_studio.javaPath, 'bin', 'java');
@@ -83,11 +87,10 @@ class AndroidWorkflow extends DoctorValidator implements Workflow {
       messages.add(new ValidationMessage.error('Could not determine java version'));
       return false;
     }
-    messages.add(new ValidationMessage('Java version: $javaVersion'));
+    messages.add(new ValidationMessage('Java version $javaVersion'));
     // TODO(johnmccutchan): Validate version.
     return true;
   }
-
 
   @override
   Future<ValidationResult> validate() async {
@@ -103,9 +106,11 @@ class AndroidWorkflow extends DoctorValidator implements Workflow {
         ));
       } else {
         messages.add(new ValidationMessage.error(
-          'Install Android Studio from https://developer.android.com/studio/index.html.\n'
+          'Unable to locate Android SDK.\n'
+          'Install Android Studio from: https://developer.android.com/studio/index.html\n'
           'On first launch it will assist you in installing the Android SDK components.\n'
-          '(or visit https://flutter.io/setup/#android-setup for detailed instructions).'
+          '(or visit https://flutter.io/setup/#android-setup for detailed instructions).\n'
+          'If Android SDK has been installed to a custom location, set \$$kAndroidHome to that location.'
         ));
       }
 
@@ -114,12 +119,16 @@ class AndroidWorkflow extends DoctorValidator implements Workflow {
 
     messages.add(new ValidationMessage('Android SDK at ${androidSdk.directory}'));
 
+    messages.add(new ValidationMessage(androidSdk.ndkDirectory == null
+          ? 'Android NDK location not configured (optional; useful for native profiling support)'
+          : 'Android NDK at ${androidSdk.ndkDirectory}'));
+
     String sdkVersionText;
     if (androidSdk.latestVersion != null) {
       sdkVersionText = 'Android SDK ${androidSdk.latestVersion.buildToolsVersionName}';
 
       messages.add(new ValidationMessage(
-        'Platform ${androidSdk.latestVersion.platformVersionName}, '
+        'Platform ${androidSdk.latestVersion.platformName}, '
         'build-tools ${androidSdk.latestVersion.buildToolsVersionName}'
       ));
     }
@@ -160,5 +169,39 @@ class AndroidWorkflow extends DoctorValidator implements Workflow {
 
     // Success.
     return new ValidationResult(ValidationType.installed, messages, statusInfo: sdkVersionText);
+  }
+
+  /// Run the Android SDK manager tool in order to accept SDK licenses.
+  static Future<bool> runLicenseManager() async {
+    if (androidSdk == null) {
+      printStatus('Unable to locate Android SDK.');
+      return false;
+    }
+
+    // If we can locate Java, then add it to the path used to run the Android SDK manager.
+    final Map<String, String> sdkManagerEnv = <String, String>{};
+    final String javaBinary = _findJavaBinary();
+    if (javaBinary != null) {
+      sdkManagerEnv['PATH'] =
+          fs.path.dirname(javaBinary) + os.pathVarSeparator + platform.environment['PATH'];
+    }
+
+    final String sdkManagerPath = fs.path.join(
+        androidSdk.directory, 'tools', 'bin',
+        platform.isWindows ? 'sdkmanager.bat' : 'sdkmanager',
+    );
+    final Process process = await runCommand(
+        <String>[sdkManagerPath, '--licenses'],
+        environment: sdkManagerEnv,
+    );
+
+    waitGroup<Null>(<Future<Null>>[
+      stdout.addStream(process.stdout),
+      stderr.addStream(process.stderr),
+      process.stdin.addStream(stdin),
+    ]);
+
+    final int exitCode = await process.exitCode;
+    return exitCode == 0;
   }
 }

@@ -8,9 +8,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'debug.dart';
-import 'icon.dart';
-import 'icon_theme.dart';
-import 'icon_theme_data.dart';
 import 'icons.dart';
 import 'ink_well.dart';
 import 'material.dart';
@@ -18,12 +15,13 @@ import 'theme.dart';
 import 'tooltip.dart';
 
 // Minimum logical pixel size of the IconButton.
+// See: <https://material.io/guidelines/layout/metrics-keylines.html#metrics-keylines-touch-target-size>
 const double _kMinButtonSize = 48.0;
 
 /// A material design icon button.
 ///
 /// An icon button is a picture printed on a [Material] widget that reacts to
-/// touches by filling with color.
+/// touches by filling with color (ink).
 ///
 /// Icon buttons are commonly used in the [AppBar.actions] field, but they can
 /// be used in many other places as well.
@@ -33,12 +31,31 @@ const double _kMinButtonSize = 48.0;
 ///
 /// Requires one of its ancestors to be a [Material] widget.
 ///
-/// Will be automatically sized up to the recommended 48 logical pixels if smaller.
+/// The hit region of an icon button will, if possible, be at least 48.0 pixels
+/// in size, regardless of the actual [iconSize], to satisfy the [touch target
+/// size](https://material.io/guidelines/layout/metrics-keylines.html#metrics-keylines-touch-target-size)
+/// requirements in the Material Design specification. The [alignment] controls
+/// how the icon itself is positioned within the hit region.
+///
+/// ## Sample code
+///
+/// ```dart
+/// new IconButton(
+///   icon: new Icon(Icons.volume_up),
+///   tooltip: 'Increase volume by 10%',
+///   onPressed: () { setState(() { _volume *= 1.1; }); },
+/// )
+/// ```
 ///
 /// See also:
 ///
-///  * [Icons]
-///  * [AppBar]
+///  * [Icons], a library of predefined icons.
+///  * [BackButton], an icon button for a "back" affordance which adapts to the
+///    current platform's conventions.
+///  * [CloseButton], an icon button for closing pages.
+///  * [AppBar], to show a toolbar at the top of an application.
+///  * [RaisedButton] and [FlatButton], for buttons with text in them.
+///  * [InkResponse] and [InkWell], for the ink splash effect itself.
 class IconButton extends StatelessWidget {
   /// Creates an icon button.
   ///
@@ -56,13 +73,19 @@ class IconButton extends StatelessWidget {
     Key key,
     this.iconSize: 24.0,
     this.padding: const EdgeInsets.all(8.0),
-    this.alignment: FractionalOffset.center,
+    this.alignment: Alignment.center,
     @required this.icon,
     this.color,
+    this.highlightColor,
+    this.splashColor,
     this.disabledColor,
     @required this.onPressed,
     this.tooltip
-  }) : super(key: key);
+  }) : assert(iconSize != null),
+       assert(padding != null),
+       assert(alignment != null),
+       assert(icon != null),
+       super(key: key);
 
   /// The size of the icon inside the button.
   ///
@@ -80,18 +103,26 @@ class IconButton extends StatelessWidget {
   /// to input gestures.
   ///
   /// This property must not be null. It defaults to 8.0 padding on all sides.
-  final EdgeInsets padding;
+  final EdgeInsetsGeometry padding;
 
   /// Defines how the icon is positioned within the IconButton.
   ///
-  /// This property must not be null. It defaults to [FractionalOffset.center].
-  final FractionalOffset alignment;
+  /// This property must not be null. It defaults to [Alignment.center].
+  ///
+  /// See also:
+  ///
+  ///  * [Alignment], a class with convenient constants typically used to
+  ///    specify an [AlignmentGeometry].
+  ///  * [AlignmentDirectional], like [Alignment] for specifying alignments
+  ///    relative to text direction.
+  final AlignmentGeometry alignment;
 
   /// The icon to display inside the button.
   ///
-  /// The [size] and [color] of the icon is configured automatically based on
-  /// the properties of _this_ widget using an [IconTheme] and therefore should
-  /// not be explicitly given in the icon widget.
+  /// The [Icon.size] and [Icon.color] of the icon is configured automatically
+  /// based on the [iconSize] and [color] properties of _this_ widget using an
+  /// [IconTheme] and therefore should not be explicitly given in the icon
+  /// widget.
   ///
   /// This property must not be null.
   ///
@@ -113,6 +144,24 @@ class IconButton extends StatelessWidget {
   ///  ),
   /// ```
   final Color color;
+
+  /// The primary color of the button when the button is in the down (pressed) state.
+  /// The splash is represented as a circular overlay that appears above the
+  /// [highlightColor] overlay. The splash overlay has a center point that matches
+  /// the hit point of the user touch event. The splash overlay will expand to
+  /// fill the button area if the touch is held for long enough time. If the splash
+  /// color has transparency then the highlight and button color will show through.
+  ///
+  /// Defaults to the Theme's splash color, [ThemeData.splashColor].
+  final Color splashColor;
+
+  /// The secondary color of the button when the button is in the down (pressed)
+  /// state. The highlight color is represented as a solid color that is overlaid over the
+  /// button color (if any). If the highlight color has transparency, the button color
+  /// will show through. The highlight fades in quickly as the button is held down.
+  ///
+  /// Defaults to the Theme's highlight color, [ThemeData.highlightColor].
+  final Color highlightColor;
 
   /// The color to use for the icon inside the button, if the icon is disabled.
   /// Defaults to the [ThemeData.disabledColor] of the current [Theme].
@@ -142,21 +191,24 @@ class IconButton extends StatelessWidget {
     else
       currentColor = disabledColor ?? Theme.of(context).disabledColor;
 
-    Widget result = new ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: _kMinButtonSize, minHeight: _kMinButtonSize),
-      child: new Padding(
-        padding: padding,
-        child: new SizedBox(
-          height: iconSize,
-          width: iconSize,
-          child: new Align(
-            alignment: alignment,
-            child: IconTheme.merge(
-              data: new IconThemeData(
-                size: iconSize,
-                color: currentColor
+    Widget result = new Semantics(
+      button: true,
+      child: new ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: _kMinButtonSize, minHeight: _kMinButtonSize),
+        child: new Padding(
+          padding: padding,
+          child: new SizedBox(
+            height: iconSize,
+            width: iconSize,
+            child: new Align(
+              alignment: alignment,
+              child: IconTheme.merge(
+                data: new IconThemeData(
+                  size: iconSize,
+                  color: currentColor
+                ),
+                child: icon
               ),
-              child: icon
             ),
           ),
         ),
@@ -172,6 +224,8 @@ class IconButton extends StatelessWidget {
     return new InkResponse(
       onTap: onPressed,
       child: result,
+      highlightColor: highlightColor ?? Theme.of(context).highlightColor,
+      splashColor: splashColor ?? Theme.of(context).splashColor,
       radius: math.max(
         Material.defaultSplashRadius,
         (iconSize + math.min(padding.horizontal, padding.vertical)) * 0.7,
@@ -181,12 +235,10 @@ class IconButton extends StatelessWidget {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('$icon');
-    if (onPressed == null)
-      description.add('disabled');
-    if (tooltip != null)
-      description.add('tooltip: "$tooltip"');
+  void debugFillProperties(DiagnosticPropertiesBuilder description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsProperty<Widget>('icon', icon, showName: false));
+    description.add(new ObjectFlagProperty<VoidCallback>('onPressed', onPressed, ifNull: 'disabled'));
+    description.add(new StringProperty('tooltip', tooltip, defaultValue: null, quoted: false));
   }
 }

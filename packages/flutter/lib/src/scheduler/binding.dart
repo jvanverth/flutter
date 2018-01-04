@@ -6,15 +6,16 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:developer';
 import 'dart:ui' as ui show window;
-import 'dart:ui' show VoidCallback;
+import 'dart:ui' show AppLifecycleState, VoidCallback;
 
-import 'package:collection/collection.dart';
+import 'package:collection/collection.dart' show PriorityQueue, HeapPriorityQueue;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'debug.dart';
 import 'priority.dart';
 
-export 'dart:ui' show VoidCallback;
+export 'dart:ui' show AppLifecycleState, VoidCallback;
 
 /// Slows down animations by this factor to help in development.
 double get timeDilation => _timeDilation;
@@ -51,9 +52,16 @@ typedef void FrameCallback(Duration timeStamp);
 typedef bool SchedulingStrategy({ int priority, SchedulerBinding scheduler });
 
 class _TaskEntry {
-  const _TaskEntry(this.task, this.priority);
+  _TaskEntry(this.task, this.priority) {
+    assert(() {
+      debugStack = StackTrace.current;
+      return true;
+    }());
+  }
   final VoidCallback task;
   final int priority;
+
+  StackTrace debugStack;
 }
 
 class _FrameCallbackEntry {
@@ -73,19 +81,18 @@ class _FrameCallbackEntry {
             );
           }
           return true;
-        });
+        }());
         debugStack = debugCurrentCallbackStack;
       } else {
         // TODO(ianh): trim the frames from this library, so that the call to scheduleFrameCallback is the top one
         debugStack = StackTrace.current;
       }
       return true;
-    });
+    }());
   }
 
   final FrameCallback callback;
 
-  // debug-mode fields
   static StackTrace debugCurrentCallbackStack;
   StackTrace debugStack;
 }
@@ -98,7 +105,7 @@ class _FrameCallbackEntry {
 /// The values of this enum are ordered in the same order as the phases occur,
 /// so their relative index values can be compared to each other.
 ///
-/// See also [WidgetsBinding.beginFrame].
+/// See also the discussion at [WidgetsBinding.drawFrame].
 enum SchedulerPhase {
   /// No frame is being processed. Tasks (scheduled by
   /// [WidgetsBinding.scheduleTask]), microtasks (scheduled by
@@ -110,14 +117,24 @@ enum SchedulerPhase {
   /// The transient callbacks (scheduled by
   /// [WidgetsBinding.scheduleFrameCallback]) are currently executing.
   ///
-  /// Typically, these callbacks handle updating objects to new animation states.
+  /// Typically, these callbacks handle updating objects to new animation
+  /// states.
+  ///
+  /// See [SchedulerBinding.handleBeginFrame].
   transientCallbacks,
+
+  /// Microtasks scheduled during the processing of transient callbacks are
+  /// current executing.
+  ///
+  /// This may include, for instance, callbacks from futures resulted during the
+  /// [transientCallbacks] phase.
+  midFrameMicrotasks,
 
   /// The persistent callbacks (scheduled by
   /// [WidgetsBinding.addPersistentFrameCallback]) are currently executing.
   ///
   /// Typically, this is the build/layout/paint pipeline. See
-  /// [WidgetsBinding.beginFrame].
+  /// [WidgetsBinding.drawFrame] and [SchedulerBinding.handleDrawFrame].
   persistentCallbacks,
 
   /// The post-frame callbacks (scheduled by
@@ -125,26 +142,41 @@ enum SchedulerPhase {
   ///
   /// Typically, these callbacks handle cleanup and scheduling of work for the
   /// next frame.
+  ///
+  /// See [SchedulerBinding.handleDrawFrame].
   postFrameCallbacks,
 }
 
 /// Scheduler for running the following:
 ///
-/// * _Frame callbacks_, triggered by the system's
-///   [ui.window.onBeginFrame] callback, for synchronizing the
-///   application's behavior to the system's display. For example, the
-///   rendering layer uses this to drive its rendering pipeline.
+/// * _Transient callbacks_, triggered by the system's [Window.onBeginFrame]
+///   callback, for synchronizing the application's behavior to the system's
+///   display. For example, [Ticker]s and [AnimationController]s trigger from
+///   these.
+///
+/// * _Persistent callbacks_, triggered by the system's [Window.onDrawFrame]
+///   callback, for updating the system's display after transient callbacks have
+///   executed. For example, the rendering layer uses this to drive its
+///   rendering pipeline.
+///
+/// * _Post-frame callbacks_, which are run after persistent callbacks, just
+///   before returning from the [Window.onDrawFrame] callback.
 ///
 /// * Non-rendering tasks, to be run between frames. These are given a
 ///   priority and are executed in priority order according to a
 ///   [schedulingStrategy].
-abstract class SchedulerBinding extends BindingBase {
+abstract class SchedulerBinding extends BindingBase with ServicesBinding {
+  // This class is intended to be used as a mixin, and should not be
+  // extended directly.
+  factory SchedulerBinding._() => null;
 
   @override
   void initInstances() {
     super.initInstances();
     _instance = this;
-    ui.window.onBeginFrame = handleBeginFrame;
+    ui.window.onBeginFrame = _handleBeginFrame;
+    ui.window.onDrawFrame = _handleDrawFrame;
+    SystemChannels.lifecycle.setMessageHandler(_handleLifecycleMessage);
   }
 
   /// The current [SchedulerBinding], if one has been created.
@@ -161,6 +193,59 @@ abstract class SchedulerBinding extends BindingBase {
         timeDilation = value;
       }
     );
+  }
+
+  /// Whether the application is visible, and if so, whether it is currently
+  /// interactive.
+  ///
+  /// This is set by [handleAppLifecycleStateChanged] when the
+  /// [SystemChannels.lifecycle] notification is dispatched.
+  ///
+  /// The preferred way to watch for changes to this value is using
+  /// [WidgetsBindingObserver.didChangeAppLifecycleState].
+  AppLifecycleState get lifecycleState => _lifecycleState;
+  AppLifecycleState _lifecycleState;
+
+  /// Called when the application lifecycle state changes.
+  ///
+  /// Notifies all the observers using
+  /// [WidgetsBindingObserver.didChangeAppLifecycleState].
+  ///
+  /// This method exposes notifications from [SystemChannels.lifecycle].
+  @protected
+  @mustCallSuper
+  void handleAppLifecycleStateChanged(AppLifecycleState state) {
+    assert(state != null);
+    _lifecycleState = state;
+    switch (state) {
+      case AppLifecycleState.resumed:
+      case AppLifecycleState.inactive:
+        _setFramesEnabledState(true);
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.suspending:
+        _setFramesEnabledState(false);
+        break;
+    }
+  }
+
+  Future<String> _handleLifecycleMessage(String message) {
+    handleAppLifecycleStateChanged(_parseAppLifecycleMessage(message));
+    return null;
+  }
+
+  static AppLifecycleState _parseAppLifecycleMessage(String message) {
+    switch (message) {
+      case 'AppLifecycleState.paused':
+        return AppLifecycleState.paused;
+      case 'AppLifecycleState.resumed':
+        return AppLifecycleState.resumed;
+      case 'AppLifecycleState.inactive':
+        return AppLifecycleState.inactive;
+      case 'AppLifecycleState.suspending':
+        return AppLifecycleState.suspending;
+    }
+    return null;
   }
 
   /// The strategy to use when deciding whether to run a task or not.
@@ -183,47 +268,79 @@ abstract class SchedulerBinding extends BindingBase {
   void scheduleTask(VoidCallback task, Priority priority) {
     final bool isFirstTask = _taskQueue.isEmpty;
     _taskQueue.add(new _TaskEntry(task, priority.value));
-    if (isFirstTask)
+    if (isFirstTask && !locked)
+      _ensureEventLoopCallback();
+  }
+
+  @override
+  void unlocked() {
+    super.unlocked();
+    if (_taskQueue.isNotEmpty)
       _ensureEventLoopCallback();
   }
 
   // Whether this scheduler already requested to be called from the event loop.
   bool _hasRequestedAnEventLoopCallback = false;
 
-  // Ensures that the scheduler is awakened by the event loop.
+  // Ensures that the scheduler services a task scheduled by [scheduleTask].
   void _ensureEventLoopCallback() {
+    assert(!locked);
+    assert(_taskQueue.isNotEmpty);
     if (_hasRequestedAnEventLoopCallback)
       return;
-    Timer.run(handleEventLoopCallback);
     _hasRequestedAnEventLoopCallback = true;
+    Timer.run(_runTasks);
   }
 
-  /// Called by the system when there is time to run tasks.
-  void handleEventLoopCallback() {
-    _hasRequestedAnEventLoopCallback = false;
-    _runTasks();
-  }
-
-  // Called when the system wakes up and at the end of each frame.
+  // Scheduled by _ensureEventLoopCallback.
   void _runTasks() {
-    if (_taskQueue.isEmpty)
-      return;
+    _hasRequestedAnEventLoopCallback = false;
+    if (handleEventLoopCallback())
+      _ensureEventLoopCallback(); // runs next task when there's time
+  }
+
+  /// Execute the highest-priority task, if it is of a high enough priority.
+  ///
+  /// Returns true if a task was executed and there are other tasks remaining
+  /// (even if they are not high-enough priority).
+  ///
+  /// Returns false if no task was executed, which can occur if there are no
+  /// tasks scheduled, if the scheduler is [locked], or if the highest-priority
+  /// task is of too low a priority given the current [schedulingStrategy].
+  ///
+  /// Also returns false if there are no tasks remaining.
+  @visibleForTesting
+  bool handleEventLoopCallback() {
+    if (_taskQueue.isEmpty || locked)
+      return false;
     final _TaskEntry entry = _taskQueue.first;
-    // TODO(floitsch): for now we only expose the priority. It might
-    // be interesting to provide more info (like, how long the task
-    // ran the last time, or how long is left in this frame).
     if (schedulingStrategy(priority: entry.priority, scheduler: this)) {
       try {
         (_taskQueue.removeFirst().task)();
-      } finally {
-        if (_taskQueue.isNotEmpty)
-          _ensureEventLoopCallback();
+      } catch (exception, exceptionStack) {
+        StackTrace callbackStack;
+        assert(() {
+          callbackStack = entry.debugStack;
+          return true;
+        }());
+        FlutterError.reportError(new FlutterErrorDetails(
+          exception: exception,
+          stack: exceptionStack,
+          library: 'scheduler library',
+          context: 'during a task callback',
+          informationCollector: (callbackStack == null) ? null : (StringBuffer information) {
+            information.writeln(
+              '\nThis exception was thrown in the context of a task callback. '
+              'When the task callback was _registered_ (as opposed to when the '
+              'exception was thrown), this was the stack:'
+            );
+            FlutterError.defaultStackFilter(callbackStack.toString().trimRight().split('\n')).forEach(information.writeln);
+          }
+        ));
       }
-    } else {
-      // TODO(floitsch): we shouldn't need to request a frame. Just schedule
-      // an event-loop callback.
-      scheduleFrame();
+      return _taskQueue.isNotEmpty;
     }
+    return false;
   }
 
   int _nextFrameCallbackId = 0; // positive
@@ -261,7 +378,6 @@ abstract class SchedulerBinding extends BindingBase {
   /// [cancelFrameCallbackWithId].
   int scheduleFrameCallback(FrameCallback callback, { bool rescheduling: false }) {
     scheduleFrame();
-
     _nextFrameCallbackId += 1;
     _transientCallbacks[_nextFrameCallbackId] = new _FrameCallbackEntry(callback, rescheduling: rescheduling);
     return _nextFrameCallbackId;
@@ -332,7 +448,7 @@ abstract class SchedulerBinding extends BindingBase {
         ));
       }
       return true;
-    });
+    }());
     return true;
   }
 
@@ -368,7 +484,7 @@ abstract class SchedulerBinding extends BindingBase {
         debugPrint('No transient callback is currently executing.');
       }
       return true;
-    });
+    }());
   }
 
   final List<FrameCallback> _persistentCallbacks = <FrameCallback>[];
@@ -406,6 +522,11 @@ abstract class SchedulerBinding extends BindingBase {
   /// added.
   ///
   /// Post-frame callbacks cannot be unregistered. They are called exactly once.
+  ///
+  /// See also:
+  ///
+  ///  * [scheduleFrameCallback], which registers a callback for the start of
+  ///    the next frame.
   void addPostFrameCallback(FrameCallback callback) {
     _postFrameCallbacks.add(callback);
   }
@@ -434,13 +555,27 @@ abstract class SchedulerBinding extends BindingBase {
     return _nextFrameCompleter.future;
   }
 
-  /// Whether this scheduler has requested that handleBeginFrame be called soon.
+  /// Whether this scheduler has requested that [handleBeginFrame] be called soon.
   bool get hasScheduledFrame => _hasScheduledFrame;
   bool _hasScheduledFrame = false;
 
   /// The phase that the scheduler is currently operating under.
   SchedulerPhase get schedulerPhase => _schedulerPhase;
   SchedulerPhase _schedulerPhase = SchedulerPhase.idle;
+
+  /// Whether frames are currently being scheduled when [scheduleFrame] is called.
+  ///
+  /// This value depends on the value of the [lifecycleState].
+  bool get framesEnabled => _framesEnabled;
+
+  bool _framesEnabled = true;
+  void _setFramesEnabledState(bool enabled) {
+    if (_framesEnabled == enabled)
+      return;
+    _framesEnabled = enabled;
+    if (enabled)
+      scheduleFrame();
+  }
 
   /// Schedules a new frame using [scheduleFrame] if this object is not
   /// currently producing a frame.
@@ -454,17 +589,117 @@ abstract class SchedulerBinding extends BindingBase {
   }
 
   /// If necessary, schedules a new frame by calling
-  /// [ui.window.scheduleFrame].
+  /// [Window.scheduleFrame].
   ///
   /// After this is called, the engine will (eventually) call
-  /// [handleBeginFrame]. (This call might be delayed, e.g. if the
-  /// device's screen is turned off it will typically be delayed until
-  /// the screen is on and the application is visible.)
+  /// [handleBeginFrame]. (This call might be delayed, e.g. if the device's
+  /// screen is turned off it will typically be delayed until the screen is on
+  /// and the application is visible.) Calling this during a frame forces
+  /// another frame to be scheduled, even if the current frame has not yet
+  /// completed.
+  ///
+  /// Scheduled frames are serviced when triggered by a "Vsync" signal provided
+  /// by the operating system. The "Vsync" signal, or vertical synchronization
+  /// signal, was historically related to the display refresh, at a time when
+  /// hardware physically moved a beam of electrons vertically between updates
+  /// of the display. The operation of contemporary hardware is somewhat more
+  /// subtle and complicated, but the conceptual "Vsync" refresh signal continue
+  /// to be used to indicate when applications should update their rendering.
+  ///
+  /// To have a stack trace printed to the console any time this function
+  /// schedules a frame, set [debugPrintScheduleFrameStacks] to true.
+  ///
+  /// See also:
+  ///
+  ///  * [scheduleForcedFrame], which ignores the [lifecycleState] when
+  ///    scheduling a frame.
+  ///  * [scheduleWarmUpFrame], which ignores the "Vsync" signal entirely and
+  ///    triggers a frame immediately.
   void scheduleFrame() {
-    if (_hasScheduledFrame)
+    if (_hasScheduledFrame || !_framesEnabled)
       return;
+    assert(() {
+      if (debugPrintScheduleFrameStacks)
+        debugPrintStack(label: 'scheduleFrame() called. Current phase is $schedulerPhase.');
+      return true;
+    }());
     ui.window.scheduleFrame();
     _hasScheduledFrame = true;
+  }
+
+  /// Schedules a new frame by calling [Window.scheduleFrame].
+  ///
+  /// After this is called, the engine will call [handleBeginFrame], even if
+  /// frames would normally not be scheduled by [scheduleFrame] (e.g. even if
+  /// the device's screen is turned off).
+  ///
+  /// The framework uses this to force a frame to be rendered at the correct
+  /// size when the phone is rotated, so that a correctly-sized rendering is
+  /// available when the screen is turned back on.
+  ///
+  /// To have a stack trace printed to the console any time this function
+  /// schedules a frame, set [debugPrintScheduleFrameStacks] to true.
+  ///
+  /// Prefer using [scheduleFrame] unless it is imperative that a frame be
+  /// scheduled immediately, since using [scheduleForceFrame] will cause
+  /// significantly higher battery usage when the device should be idle.
+  ///
+  /// Consider using [scheduleWarmUpFrame] instead if the goal is to update the
+  /// rendering as soon as possible (e.g. at application startup).
+  void scheduleForcedFrame() {
+    if (_hasScheduledFrame)
+      return;
+    assert(() {
+      if (debugPrintScheduleFrameStacks)
+        debugPrintStack(label: 'scheduleForcedFrame() called. Current phase is $schedulerPhase.');
+      return true;
+    }());
+    ui.window.scheduleFrame();
+    _hasScheduledFrame = true;
+  }
+
+  bool _warmUpFrame = false;
+
+  /// Schedule a frame to run as soon as possible, rather than waiting for
+  /// the engine to request a frame in response to a system "Vsync" signal.
+  ///
+  /// This is used during application startup so that the first frame (which is
+  /// likely to be quite expensive) gets a few extra milliseconds to run.
+  ///
+  /// If a frame has already been scheduled with [scheduleFrame] or
+  /// [scheduleForcedFrame], this call may delay that frame.
+  ///
+  /// If any scheduled frame has already begun or if another
+  /// [scheduleWarmUpFrame] was already called, this call will be ignored.
+  ///
+  /// Prefer [scheduleFrame] to update the display in normal operation.
+  void scheduleWarmUpFrame() {
+    if (_warmUpFrame || schedulerPhase != SchedulerPhase.idle)
+      return;
+
+    final bool hadScheduledFrame = _hasScheduledFrame;
+    _warmUpFrame = true;
+    // We use timers here to ensure that microtasks flush in between.
+    Timer.run(() {
+      assert(_warmUpFrame);
+      handleBeginFrame(null);
+    });
+    Timer.run(() {
+      assert(_warmUpFrame);
+      handleDrawFrame();
+      // We call resetEpoch after this frame so that, in the hot reload case,
+      // the very next frame pretends to have occurred immediately after this
+      // warm-up frame. The warm-up frame's timestamp will typically be far in
+      // the past (the time of the last real frame), so if we didn't reset the
+      // epoch we would see a sudden jump from the old time in the warm-up frame
+      // to the new time in the "real" frame. The biggest problem with this is
+      // that implicit animations end up being triggered at the old time and
+      // then skipping every frame and finishing in the new time.
+      resetEpoch();
+      _warmUpFrame = false;
+      if (hadScheduledFrame)
+        scheduleFrame();
+    });
   }
 
   Duration _firstRawTimeStampInEpoch;
@@ -472,7 +707,7 @@ abstract class SchedulerBinding extends BindingBase {
   Duration _lastRawTimeStamp = Duration.ZERO;
 
   /// Prepares the scheduler for a non-monotonic change to how time stamps are
-  /// calcuated.
+  /// calculated.
   ///
   /// Callbacks received from the scheduler assume that their time stamps are
   /// monotonically increasing. The raw time stamp passed to [handleBeginFrame]
@@ -516,15 +751,34 @@ abstract class SchedulerBinding extends BindingBase {
   }
   Duration _currentFrameTimeStamp;
 
-  int _debugFrameNumber = 0;
+  int _profileFrameNumber = 0;
+  final Stopwatch _profileFrameStopwatch = new Stopwatch();
+  String _debugBanner;
+  bool _ignoreNextEngineDrawFrame = false;
 
-  /// Called by the engine to produce a new frame.
+  void _handleBeginFrame(Duration rawTimeStamp) {
+    if (_warmUpFrame) {
+      assert(!_ignoreNextEngineDrawFrame);
+      _ignoreNextEngineDrawFrame = true;
+      return;
+    }
+    handleBeginFrame(rawTimeStamp);
+  }
+
+  void _handleDrawFrame() {
+    if (_ignoreNextEngineDrawFrame) {
+      _ignoreNextEngineDrawFrame = false;
+      return;
+    }
+    handleDrawFrame();
+  }
+
+  /// Called by the engine to prepare the framework to produce a new frame.
   ///
-  /// This function first calls all the callbacks registered by
-  /// [scheduleFrameCallback], then calls all the callbacks
-  /// registered by [addPersistentFrameCallback], which typically drive the
-  /// rendering pipeline, and finally calls the callbacks registered by
-  /// [addPostFrameCallback].
+  /// This function calls all the transient frame callbacks registered by
+  /// [scheduleFrameCallback]. It then returns, any scheduled microtasks are run
+  /// (e.g. handlers for any [Future]s resolved by transient frame callbacks),
+  /// and [handleDrawFrame] is called to continue the frame.
   ///
   /// If the given time stamp is null, the time stamp from the last frame is
   /// reused.
@@ -534,24 +788,28 @@ abstract class SchedulerBinding extends BindingBase {
   /// console using [debugPrint] and will contain the frame number (which
   /// increments by one for each frame), and the time stamp of the frame. If the
   /// given time stamp was null, then the string "warm-up frame" is shown
-  /// instead of the time stamp. This allows you to distinguish frames eagerly
-  /// pushed by the framework from those requested by the engine in response to
-  /// the vsync signal from the operating system.
+  /// instead of the time stamp. This allows frames eagerly pushed by the
+  /// framework to be distinguished from those requested by the engine in
+  /// response to the "Vsync" signal from the operating system.
   ///
   /// You can also show a banner at the end of every frame by setting
   /// [debugPrintEndFrameBanner] to true. This allows you to distinguish log
   /// statements printed during a frame from those printed between frames (e.g.
   /// in response to events or timers).
   void handleBeginFrame(Duration rawTimeStamp) {
-    Timeline.startSync('Frame');
+    Timeline.startSync('Frame', arguments: timelineWhitelistArguments);
     _firstRawTimeStampInEpoch ??= rawTimeStamp;
     _currentFrameTimeStamp = _adjustForEpoch(rawTimeStamp ?? _lastRawTimeStamp);
     if (rawTimeStamp != null)
       _lastRawTimeStamp = rawTimeStamp;
 
-    String debugBanner;
+    profile(() {
+      _profileFrameNumber += 1;
+      _profileFrameStopwatch.reset();
+      _profileFrameStopwatch.start();
+    });
+
     assert(() {
-      _debugFrameNumber += 1;
       if (debugPrintBeginFrameBanner || debugPrintEndFrameBanner) {
         final StringBuffer frameTimeStampDescription = new StringBuffer();
         if (rawTimeStamp != null) {
@@ -559,21 +817,44 @@ abstract class SchedulerBinding extends BindingBase {
         } else {
           frameTimeStampDescription.write('(warm-up frame)');
         }
-        debugBanner = '▄▄▄▄▄▄▄▄ Frame ${_debugFrameNumber.toString().padRight(7)}   ${frameTimeStampDescription.toString().padLeft(18)} ▄▄▄▄▄▄▄▄';
+        _debugBanner = '▄▄▄▄▄▄▄▄ Frame ${_profileFrameNumber.toString().padRight(7)}   ${frameTimeStampDescription.toString().padLeft(18)} ▄▄▄▄▄▄▄▄';
         if (debugPrintBeginFrameBanner)
-          debugPrint(debugBanner);
+          debugPrint(_debugBanner);
       }
       return true;
-    });
+    }());
 
     assert(schedulerPhase == SchedulerPhase.idle);
     _hasScheduledFrame = false;
     try {
-
       // TRANSIENT FRAME CALLBACKS
+      Timeline.startSync('Animate', arguments: timelineWhitelistArguments);
       _schedulerPhase = SchedulerPhase.transientCallbacks;
-      _invokeTransientFrameCallbacks(_currentFrameTimeStamp);
+      final Map<int, _FrameCallbackEntry> callbacks = _transientCallbacks;
+      _transientCallbacks = <int, _FrameCallbackEntry>{};
+      callbacks.forEach((int id, _FrameCallbackEntry callbackEntry) {
+        if (!_removedIds.contains(id))
+          _invokeFrameCallback(callbackEntry.callback, _currentFrameTimeStamp, callbackEntry.debugStack);
+      });
+      _removedIds.clear();
+    } finally {
+      _schedulerPhase = SchedulerPhase.midFrameMicrotasks;
+    }
+  }
 
+  /// Called by the engine to produce a new frame.
+  ///
+  /// This method is called immediately after [handleBeginFrame]. It calls all
+  /// the callbacks registered by [addPersistentFrameCallback], which typically
+  /// drive the rendering pipeline, and then calls the callbacks registered by
+  /// [addPostFrameCallback].
+  ///
+  /// See [handleBeginFrame] for a discussion about debugging hooks that may be
+  /// useful when working with frame callbacks.
+  void handleDrawFrame() {
+    assert(_schedulerPhase == SchedulerPhase.midFrameMicrotasks);
+    Timeline.finishSync(); // end the "Animate" phase
+    try {
       // PERSISTENT FRAME CALLBACKS
       _schedulerPhase = SchedulerPhase.persistentCallbacks;
       for (FrameCallback callback in _persistentCallbacks)
@@ -586,33 +867,29 @@ abstract class SchedulerBinding extends BindingBase {
       _postFrameCallbacks.clear();
       for (FrameCallback callback in localPostFrameCallbacks)
         _invokeFrameCallback(callback, _currentFrameTimeStamp);
-
     } finally {
       _schedulerPhase = SchedulerPhase.idle;
-      _currentFrameTimeStamp = null;
-      Timeline.finishSync();
+      Timeline.finishSync(); // end the Frame
+      profile(() {
+        _profileFrameStopwatch.stop();
+        _profileFramePostEvent();
+      });
       assert(() {
         if (debugPrintEndFrameBanner)
-          debugPrint('▀' * debugBanner.length);
+          debugPrint('▀' * _debugBanner.length);
+        _debugBanner = null;
         return true;
-      });
+      }());
+      _currentFrameTimeStamp = null;
     }
-
-    // All frame-related callbacks have been executed. Run lower-priority tasks.
-    _runTasks();
   }
 
-  void _invokeTransientFrameCallbacks(Duration timeStamp) {
-    Timeline.startSync('Animate');
-    assert(schedulerPhase == SchedulerPhase.transientCallbacks);
-    final Map<int, _FrameCallbackEntry> callbacks = _transientCallbacks;
-    _transientCallbacks = <int, _FrameCallbackEntry>{};
-    callbacks.forEach((int id, _FrameCallbackEntry callbackEntry) {
-      if (!_removedIds.contains(id))
-        _invokeFrameCallback(callbackEntry.callback, timeStamp, callbackEntry.debugStack);
+  void _profileFramePostEvent() {
+    postEvent('Flutter.Frame', <String, dynamic>{
+      'number': _profileFrameNumber,
+      'startTime': _currentFrameTimeStamp.inMicroseconds,
+      'elapsed': _profileFrameStopwatch.elapsedMicroseconds
     });
-    _removedIds.clear();
-    Timeline.finishSync();
   }
 
   static void _debugDescribeTimeStamp(Duration timeStamp, StringBuffer buffer) {
@@ -639,8 +916,7 @@ abstract class SchedulerBinding extends BindingBase {
   void _invokeFrameCallback(FrameCallback callback, Duration timeStamp, [ StackTrace callbackStack ]) {
     assert(callback != null);
     assert(_FrameCallbackEntry.debugCurrentCallbackStack == null);
-    // TODO(ianh): Consider using a Zone instead to track the current callback registration stack
-    assert(() { _FrameCallbackEntry.debugCurrentCallbackStack = callbackStack; return true; });
+    assert(() { _FrameCallbackEntry.debugCurrentCallbackStack = callbackStack; return true; }());
     try {
       callback(timeStamp);
     } catch (exception, exceptionStack) {
@@ -659,7 +935,7 @@ abstract class SchedulerBinding extends BindingBase {
         }
       ));
     }
-    assert(() { _FrameCallbackEntry.debugCurrentCallbackStack = null; return true; });
+    assert(() { _FrameCallbackEntry.debugCurrentCallbackStack = null; return true; }());
   }
 }
 

@@ -62,7 +62,7 @@ class Trigger {
 }
 
 class TriggerableWidget extends StatefulWidget {
-  TriggerableWidget({ this.trigger, this.counter });
+  const TriggerableWidget({ this.trigger, this.counter });
   final Trigger trigger;
   final Counter counter;
   @override
@@ -78,6 +78,7 @@ class TriggerableState extends State<TriggerableWidget> {
 
   @override
   void didUpdateWidget(TriggerableWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
     widget.trigger.callback = fire;
   }
 
@@ -91,7 +92,39 @@ class TriggerableState extends State<TriggerableWidget> {
   @override
   Widget build(BuildContext context) {
     widget.counter.count++;
-    return new Text("Bang $_count!");
+    return new Text('Bang $_count!', textDirection: TextDirection.ltr);
+  }
+}
+
+class TestFocusable extends StatefulWidget {
+  const TestFocusable({
+    Key key,
+    this.focusNode,
+    this.autofocus: true,
+  }) : super(key: key);
+
+  final bool autofocus;
+  final FocusNode focusNode;
+
+  @override
+  TestFocusableState createState() => new TestFocusableState();
+}
+
+class TestFocusableState extends State<TestFocusable> {
+  bool _didAutofocus = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_didAutofocus && widget.autofocus) {
+      _didAutofocus = true;
+      FocusScope.of(context).autofocus(widget.focusNode);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text('Test focus node', textDirection: TextDirection.ltr);
   }
 }
 
@@ -145,4 +178,28 @@ void main() {
     expect(counter1.count, equals(3));
     expect(counter2.count, equals(3));
   });
+
+  testWidgets('no crosstalk between focus nodes', (WidgetTester tester) async {
+    final OffscreenWidgetTree tree = new OffscreenWidgetTree();
+    final FocusNode onscreenFocus = new FocusNode();
+    final FocusNode offscreenFocus = new FocusNode();
+    await tester.pumpWidget(
+      new TestFocusable(
+        focusNode: onscreenFocus,
+      ),
+    );
+    tree.pumpWidget(
+      new TestFocusable(
+        focusNode: offscreenFocus,
+      ),
+    );
+
+    // Autofocus is delayed one frame.
+    await tester.pump();
+    tree.pumpFrame();
+
+    expect(onscreenFocus.hasFocus, isTrue);
+    expect(offscreenFocus.hasFocus, isTrue);
+  });
+
 }

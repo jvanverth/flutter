@@ -95,9 +95,10 @@ abstract class FlowDelegate {
   /// it paint entirely outside the container's clip.
   ///
   /// To paint a child, call [FlowPaintingContext.paintChild] on the given
-  /// [context]. The given context is valid only within the scope of this
-  /// function call and contains information (such as the size of the container)
-  /// that is useful for picking transformation matrices for the children.
+  /// [FlowPaintingContext] (the `context` argument). The given context is valid
+  /// only within the scope of this function call and contains information (such
+  /// as the size of the container) that is useful for picking transformation
+  /// matrices for the children.
   ///
   /// If this function depends on information other than the given context,
   /// override [shouldRepaint] to indicate when when the container should
@@ -142,7 +143,7 @@ int _getAlphaFromOpacity(double opacity) => (opacity * 255).round();
 /// transformation matrix, which is private to the [RenderFlow]. To set the
 /// matrix, use the [FlowPaintingContext.paintChild] function from an override
 /// of the [FlowDelegate.paintChildren] function.
-class FlowParentData extends ContainerBoxParentDataMixin<RenderBox> {
+class FlowParentData extends ContainerBoxParentData<RenderBox> {
   Matrix4 _transform;
 }
 
@@ -177,12 +178,12 @@ class RenderFlow extends RenderBox
   /// Creates a render object for a flow layout.
   ///
   /// For optimal performance, consider using children that return true from
-  /// [isRepaintBounday].
+  /// [isRepaintBoundary].
   RenderFlow({
     List<RenderBox> children,
     @required FlowDelegate delegate
-  }) : _delegate = delegate {
-    assert(delegate != null);
+  }) : assert(delegate != null),
+       _delegate = delegate {
     addAll(children);
   }
 
@@ -325,7 +326,7 @@ class RenderFlow extends RenderBox
         );
       }
       return true;
-    });
+    }());
     _lastPaintOrder.add(i);
     childParentData._transform = transform;
 

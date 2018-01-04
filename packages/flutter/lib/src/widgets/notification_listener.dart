@@ -26,6 +26,10 @@ typedef bool NotificationListenerCallback<T extends Notification>(T notification
 /// widgets with the appropriate type parameters that are ancestors of the given
 /// [BuildContext].
 abstract class Notification {
+  /// Abstract const constructor. This constructor enables subclasses to provide
+  /// const constructors so that they can be used in const expressions.
+  const Notification();
+
   /// Applied to each ancestor of the [dispatch] target.
   ///
   /// The [Notification] class implementation of this method dispatches the
@@ -86,43 +90,42 @@ abstract class Notification {
 /// To dispatch notifications, use the [Notification.dispatch] method.
 class NotificationListener<T extends Notification> extends StatelessWidget {
   /// Creates a widget that listens for notifications.
-  NotificationListener({
+  const NotificationListener({
     Key key,
     @required this.child,
-    this.onNotification
+    this.onNotification,
   }) : super(key: key);
 
-  /// The widget below this widget in the tree.
+  /// The widget directly below this widget in the tree.
+  ///
+  /// This is not necessarily the widget that dispatched the notification.
+  ///
+  /// {@macro flutter.widgets.child}
   final Widget child;
 
   /// Called when a notification of the appropriate type arrives at this
   /// location in the tree.
   ///
-  /// Return true to cancel the notification bubbling. Return false to allow the
-  /// notification to continue to be dispatched to further ancestors.
+  /// Return true to cancel the notification bubbling. Return false (or null) to
+  /// allow the notification to continue to be dispatched to further ancestors.
   ///
   /// The notification's [Notification.visitAncestor] method is called for each
   /// ancestor, and invokes this callback as appropriate.
+  ///
+  /// Notifications vary in terms of when they are dispatched. There are two
+  /// main possibilities: dispatch between frames, and dispatch during layout.
+  ///
+  /// For notifications that dispatch during layout, such as those that inherit
+  /// from [LayoutChangedNotification], it is too late to call [State.setState]
+  /// in response to the notification (as layout is currently happening in a
+  /// descendant, by definition, since notifications bubble up the tree). For
+  /// widgets that depend on layout, consider a [LayoutBuilder] instead.
   final NotificationListenerCallback<T> onNotification;
 
   bool _dispatch(Notification notification, Element element) {
     if (onNotification != null && notification is T) {
       final bool result = onNotification(notification);
-      assert(() {
-        if (result == null)
-          throw new FlutterError(
-            'NotificationListener<$T> handler returned null.\n'
-            'The onNotification handler for the NotificationListener with the '
-            'following element returned null:\n'
-            '  $element\n'
-            'The ancestor chain for this widget was as follows:\n'
-            '  ${element.debugGetCreatorChain(12)}\n'
-            'Notification listeners must return true to stop the notification bubbling, '
-            'or false to allow it to continue (the common case is returning false).'
-          );
-        return true;
-      });
-      return result;
+      return result == true; // so that null and false have the same effect
     }
     return false;
   }

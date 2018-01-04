@@ -3,37 +3,41 @@
 // found in the LICENSE file.
 
 import 'dart:typed_data';
-import 'dart:ui' show hashValues;
 
 import 'package:flutter/foundation.dart';
 
+import 'platform_channel.dart';
+
+export 'dart:typed_data' show ByteData;
+
 /// A message encoding/decoding mechanism.
 ///
-/// Both operations throw [FormatException], if conversion fails.
+/// Both operations throw an exception, if conversion fails. Such situations
+/// should be treated as programming errors.
 ///
 /// See also:
 ///
-/// * [PlatformMessageChannel], which use [MessageCodec]s for communication
+/// * [BasicMessageChannel], which use [MessageCodec]s for communication
 ///   between Flutter and platform plugins.
 abstract class MessageCodec<T> {
   /// Encodes the specified [message] in binary.
   ///
-  /// Returns `null` if the message is `null`.
+  /// Returns null if the message is null.
   ByteData encodeMessage(T message);
 
   /// Decodes the specified [message] from binary.
   ///
-  /// Returns `null` if the message is `null`.
+  /// Returns null if the message is null.
   T decodeMessage(ByteData message);
 }
 
 /// An command object representing the invocation of a named method.
+@immutable
 class MethodCall {
   /// Creates a [MethodCall] representing the invocation of [method] with the
   /// specified [arguments].
-  MethodCall(this.method, [this.arguments]) {
-    assert(method != null);
-  }
+  const MethodCall(this.method, [this.arguments])
+    : assert(method != null);
 
   /// The name of the method to be called.
   final String method;
@@ -44,71 +48,21 @@ class MethodCall {
   final dynamic arguments;
 
   @override
-  bool operator == (dynamic other) {
-    if (identical(this, other))
-      return true;
-    if (runtimeType != other.runtimeType)
-      return false;
-    return method == other.method && _deepEquals(arguments, other.arguments);
-  }
-
-  @override
-  int get hashCode => hashValues(method, arguments);
-
-  bool _deepEquals(dynamic a, dynamic b) {
-    if (a == b)
-      return true;
-    if (a is List)
-      return b is List && _deepEqualsList(a, b);
-    if (a is Map)
-      return b is Map && _deepEqualsMap(a, b);
-    return false;
-  }
-
-  bool _deepEqualsList(List<dynamic> a, List<dynamic> b) {
-    if (a.length != b.length)
-      return false;
-    for (int i = 0; i < a.length; i++) {
-      if (!_deepEquals(a[i], b[i]))
-        return false;
-    }
-    return true;
-  }
-
-  bool _deepEqualsMap(Map<dynamic, dynamic> a, Map<dynamic, dynamic> b) {
-    if (a.length != b.length)
-      return false;
-    for (dynamic key in a.keys) {
-      if (!b.containsKey(key) || !_deepEquals(a[key], b[key]))
-        return false;
-    }
-    return true;
-  }
-
-  @override
   String toString() => '$runtimeType($method, $arguments)';
 }
 
 /// A codec for method calls and enveloped results.
 ///
-/// Result envelopes are binary messages with enough structure that the codec can
-/// distinguish between a successful result and an error. In the former case,
-/// the codec must be able to extract the result payload, possibly `null`. In
-/// the latter case, the codec must be able to extract an error code string,
-/// a (human-readable) error message string, and a value providing any
-/// additional error details, possibly `null`. These data items are used to
-/// populate a [PlatformException].
-///
-/// All operations throw [FormatException], if conversion fails.
+/// All operations throw an exception, if conversion fails.
 ///
 /// See also:
 ///
-/// * [PlatformMethodChannel], which use [MethodCodec]s for communication
+/// * [MethodChannel], which use [MethodCodec]s for communication
 ///   between Flutter and platform plugins.
-/// * [PlatformEventChannel], which use [MethodCodec]s for communication
+/// * [EventChannel], which use [MethodCodec]s for communication
 ///   between Flutter and platform plugins.
 abstract class MethodCodec {
-  /// Encodes the specified [methodCall] in binary.
+  /// Encodes the specified [methodCall] into binary.
   ByteData encodeMethodCall(MethodCall methodCall);
 
   /// Decodes the specified [methodCall] from binary.
@@ -138,10 +92,10 @@ abstract class MethodCodec {
 ///
 /// * [MethodCodec], which throws a [PlatformException], if a received result
 ///   envelope represents an error.
-/// * [PlatformMethodChannel.invokeMethod], which completes the returned future
+/// * [MethodChannel.invokeMethod], which completes the returned future
 ///   with a [PlatformException], if invoking the platform plugin method
 ///   results in an error envelope.
-/// * [PlatformEventChannel.receiveBroadcastStream], which emits
+/// * [EventChannel.receiveBroadcastStream], which emits
 ///   [PlatformException]s as error events, whenever an event received from the
 ///   platform plugin is wrapped in an error envelope.
 class PlatformException implements Exception {
@@ -152,17 +106,15 @@ class PlatformException implements Exception {
     @required this.code,
     this.message,
     this.details,
-  }) {
-    assert(code != null);
-  }
+  }) : assert(code != null);
 
   /// An error code.
   final String code;
 
-  /// A human-readable error message, possibly `null`.
+  /// A human-readable error message, possibly null.
   final String message;
 
-  /// Error details, possibly `null`.
+  /// Error details, possibly null.
   final dynamic details;
 
   @override
@@ -174,15 +126,17 @@ class PlatformException implements Exception {
 ///
 /// See also:
 ///
-/// * [PlatformMethodChannel.invokeMethod], which completes the returned future
+/// * [MethodChannel.invokeMethod], which completes the returned future
 ///   with a [MissingPluginException], if no plugin handler for the method call
 ///   was found.
+/// * [OptionalMethodChannel.invokeMethod], which completes the returned future
+///   with null, if no plugin handler for the method call was found.
 class MissingPluginException implements Exception {
   /// Creates a [MissingPluginException] with an optional human-readable
   /// error message.
   MissingPluginException([this.message]);
 
-  /// A human-readable error message, possibly `null`.
+  /// A human-readable error message, possibly null.
   final String message;
 
   @override

@@ -13,7 +13,7 @@ import 'debug.dart';
 import 'theme.dart';
 import 'toggleable.dart';
 
-/// A material design checkbox
+/// A material design checkbox.
 ///
 /// The checkbox itself does not maintain any state. Instead, when the state of
 /// the checkbox changes, the widget calls the [onChanged] callback. Most
@@ -25,9 +25,11 @@ import 'toggleable.dart';
 ///
 /// See also:
 ///
-///  * [Radio]
-///  * [Switch]
-///  * [Slider]
+///  * [CheckboxListTile], which combines this widget with a [ListTile] so that
+///    you can give the checkbox a label.
+///  * [Switch], a widget with semantics similar to [Checkbox].
+///  * [Radio], for selecting among a set of explicit values.
+///  * [Slider], for selecting a value in a range.
 ///  * <https://material.google.com/components/selection-controls.html#selection-controls-checkbox>
 ///  * <https://material.google.com/components/lists-controls.html#lists-controls-types-of-list-controls>
 class Checkbox extends StatefulWidget {
@@ -39,16 +41,23 @@ class Checkbox extends StatefulWidget {
   /// rebuild the checkbox with a new [value] to update the visual appearance of
   /// the checkbox.
   ///
-  /// * [value] determines whether the checkbox is checked.
-  /// * [onChanged] is called when the value of the checkbox should change.
-  Checkbox({
+  /// The following arguments are required:
+  ///
+  /// * [value], which determines whether the checkbox is checked, and must not
+  ///   be null.
+  /// * [onChanged], which is called when the value of the checkbox should
+  ///   change. It can be set to null to disable the checkbox.
+  const Checkbox({
     Key key,
     @required this.value,
     @required this.onChanged,
-    this.activeColor
-  }) : super(key: key);
+    this.activeColor,
+  }) : assert(value != null),
+       super(key: key);
 
   /// Whether this checkbox is checked.
+  ///
+  /// This property must not be null.
   final bool value;
 
   /// Called when the value of the checkbox should change.
@@ -59,7 +68,7 @@ class Checkbox extends StatefulWidget {
   ///
   /// If null, the checkbox will be displayed as disabled.
   ///
-  /// The callback provided to onChanged should update the state of the parent
+  /// The callback provided to [onChanged] should update the state of the parent
   /// [StatefulWidget] using the [State.setState] method, so that the parent
   /// gets rebuilt; for example:
   ///
@@ -71,7 +80,7 @@ class Checkbox extends StatefulWidget {
   ///       _throwShotAway = newValue;
   ///     });
   ///   },
-  /// ),
+  /// )
   /// ```
   final ValueChanged<bool> onChanged;
 
@@ -103,19 +112,18 @@ class _CheckboxState extends State<Checkbox> with TickerProviderStateMixin {
 }
 
 class _CheckboxRenderObjectWidget extends LeafRenderObjectWidget {
-  _CheckboxRenderObjectWidget({
+  const _CheckboxRenderObjectWidget({
     Key key,
     @required this.value,
     @required this.activeColor,
     @required this.inactiveColor,
     @required this.onChanged,
     @required this.vsync,
-  }) : super(key: key) {
-    assert(value != null);
-    assert(activeColor != null);
-    assert(inactiveColor != null);
-    assert(vsync != null);
-  }
+  }) : assert(value != null),
+       assert(activeColor != null),
+       assert(inactiveColor != null),
+       assert(vsync != null),
+       super(key: key);
 
   final bool value;
   final Color activeColor;
@@ -143,7 +151,6 @@ class _CheckboxRenderObjectWidget extends LeafRenderObjectWidget {
   }
 }
 
-const double _kMidpoint = 0.5;
 const double _kEdgeSize = Checkbox.width;
 const Radius _kEdgeRadius = const Radius.circular(1.0);
 const double _kStrokeWidth = 2.0;

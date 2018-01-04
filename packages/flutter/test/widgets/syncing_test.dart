@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
 
 class TestWidget extends StatefulWidget {
-  TestWidget({ this.child, this.persistentState, this.syncedState });
+  const TestWidget({ this.child, this.persistentState, this.syncedState });
 
   final Widget child;
   final int persistentState;
@@ -30,6 +30,7 @@ class TestWidgetState extends State<TestWidget> {
 
   @override
   void didUpdateWidget(TestWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
     syncedState = widget.syncedState;
     // we explicitly do NOT sync the persistentState from the new instance
     // because we're using that to track whether we got recreated
@@ -111,8 +112,8 @@ void main() {
   });
 
   testWidgets('swap instances around', (WidgetTester tester) async {
-    final Widget a = new TestWidget(persistentState: 0x61, syncedState: 0x41, child: const Text('apple'));
-    final Widget b = new TestWidget(persistentState: 0x62, syncedState: 0x42, child: const Text('banana'));
+    final Widget a = const TestWidget(persistentState: 0x61, syncedState: 0x41, child: const Text('apple', textDirection: TextDirection.ltr));
+    final Widget b = const TestWidget(persistentState: 0x62, syncedState: 0x42, child: const Text('banana', textDirection: TextDirection.ltr));
     await tester.pumpWidget(new Column());
 
     final GlobalKey keyA = new GlobalKey();

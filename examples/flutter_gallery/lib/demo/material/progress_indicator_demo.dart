@@ -63,17 +63,17 @@ class _ProgressIndicatorDemoState extends State<ProgressIndicatorDemo> with Sing
 
   Widget _buildIndicators(BuildContext context, Widget child) {
     final List<Widget> indicators = <Widget>[
-      new SizedBox(
+      const SizedBox(
         width: 200.0,
-        child: new LinearProgressIndicator()
+        child: const LinearProgressIndicator()
       ),
-      new LinearProgressIndicator(),
-      new LinearProgressIndicator(),
+      const LinearProgressIndicator(),
+      const LinearProgressIndicator(),
       new LinearProgressIndicator(value: _animation.value),
       new Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: <Widget>[
-          new CircularProgressIndicator(),
+          const CircularProgressIndicator(),
           new SizedBox(
               width: 20.0,
               height: 20.0,
@@ -107,17 +107,21 @@ class _ProgressIndicatorDemoState extends State<ProgressIndicatorDemo> with Sing
             child: new GestureDetector(
               onTap: _handleTap,
               behavior: HitTestBehavior.opaque,
-              child: new Container(
-                padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-                child: new AnimatedBuilder(
-                  animation: _animation,
-                  builder: _buildIndicators
-                )
-              )
-            )
-          )
-        )
-      )
+              child: new SafeArea(
+                top: false,
+                bottom: false,
+                child: new Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+                  child: new AnimatedBuilder(
+                    animation: _animation,
+                    builder: _buildIndicators
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

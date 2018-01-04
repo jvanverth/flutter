@@ -5,8 +5,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-const Color _kBlue = const Color(0xFF007AFF);
-
 class CupertinoDialogDemo extends StatefulWidget {
   static const String routeName = '/cupertino/dialog';
 
@@ -44,7 +42,7 @@ class _CupertinoDialogDemoState extends State<CupertinoDialogDemo> {
         children: <Widget> [
           new CupertinoButton(
             child: const Text('Alert'),
-            color: _kBlue,
+            color: CupertinoColors.activeBlue,
             onPressed: () {
               showDemoDialog<String>(
                 context: context,
@@ -53,11 +51,12 @@ class _CupertinoDialogDemoState extends State<CupertinoDialogDemo> {
                   actions: <Widget>[
                     new CupertinoDialogAction(
                       child: const Text('Discard'),
-                      isDestructive: true,
-                      onPressed: () { Navigator.pop(context, 'OK'); }
+                      isDestructiveAction: true,
+                      onPressed: () { Navigator.pop(context, 'Discard'); }
                     ),
                     new CupertinoDialogAction(
-                      child: const Text('Cancel', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      child: const Text('Cancel'),
+                      isDefaultAction: true,
                       onPressed: () { Navigator.pop(context, 'Cancel'); }
                     ),
                   ]
@@ -68,7 +67,7 @@ class _CupertinoDialogDemoState extends State<CupertinoDialogDemo> {
           const Padding(padding: const EdgeInsets.all(8.0)),
           new CupertinoButton(
             child: const Text('Alert with Title'),
-            color: _kBlue,
+            color: CupertinoColors.activeBlue,
             padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 36.0),
             onPressed: () {
               showDemoDialog<String>(

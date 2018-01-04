@@ -6,67 +6,19 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 
-import 'basic.dart';
 import 'framework.dart';
 import 'notification_listener.dart';
-import 'scrollable.dart' show Scrollable, ScrollableState;
-
-/// A description of a [Scrollable]'s contents, useful for modelling the state
-/// of the viewport, for example by a [Scrollbar].
-///
-/// The units used by the [extentBefore], [extentInside], and [extentAfter] are
-/// not defined, but must be consistent. For example, they could be in pixels,
-/// or in percentages, or in units of the [extentInside] (in the latter case,
-/// [extentInside] would always be 1.0).
-class ScrollMetrics {
-  /// Create a description of the metrics of a [Scrollable]'s contents.
-  ///
-  /// The three arguments must be present, non-null, finite, and non-negative.
-  const ScrollMetrics({
-    @required this.extentBefore,
-    @required this.extentInside,
-    @required this.extentAfter,
-    @required this.viewportDimension,
-  });
-
-  /// Creates a [ScrollMetrics] that has the same properties as the given
-  /// [ScrollMetrics].
-  ScrollMetrics.clone(ScrollMetrics other)
-    : extentBefore = other.extentBefore,
-      extentInside = other.extentInside,
-      extentAfter = other.extentAfter,
-      viewportDimension = other.viewportDimension;
-
-  /// The quantity of content conceptually "above" the currently visible content
-  /// of the viewport in the scrollable. This is the content above the content
-  /// described by [extentInside].
-  final double extentBefore;
-
-  /// The quantity of visible content.
-  ///
-  /// If [extentBefore] and [extentAfter] are non-zero, then this is typically
-  /// the height of the viewport. It could be less if there is less content
-  /// visible than the size of the viewport.
-  final double extentInside;
-
-  /// The quantity of content conceptually "below" the currently visible content
-  /// of the viewport in the scrollable. This is the content below the content
-  /// described by [extentInside].
-  final double extentAfter;
-
-  final double viewportDimension;
-
-  @override
-  String toString() {
-    return '$runtimeType(${extentBefore.toStringAsFixed(1)}..[${extentInside.toStringAsFixed(1)}]..${extentAfter.toStringAsFixed(1)}})';
-  }
-}
+import 'scroll_metrics.dart';
 
 /// Mixin for [Notification]s that track how many [RenderAbstractViewport] they
 /// have bubbled through.
 ///
 /// This is used by [ScrollNotification] and [OverscrollIndicatorNotification].
 abstract class ViewportNotificationMixin extends Notification {
+  // This class is intended to be used as a mixin, and should not be
+  // extended directly.
+  factory ViewportNotificationMixin._() => null;
+
   /// The number of viewports that this notification has bubbled through.
   ///
   /// Typically listeners only respond to notifications with a [depth] of zero.
@@ -91,22 +43,56 @@ abstract class ViewportNotificationMixin extends Notification {
   }
 }
 
+/// A [Notification] related to scrolling.
+///
+/// [Scrollable] widgets notify their ancestors about scrolling-related changes.
+/// The notifications have the following lifecycle:
+///
+///  * A [ScrollStartNotification], which indicates that the widget has started
+///    scrolling.
+///  * Zero or more [ScrollUpdateNotification]s, which indicate that the widget
+///    has changed its scroll position, mixed with zero or more
+///    [OverscrollNotification]s, which indicate that the widget has not changed
+///    its scroll position because the change would have caused its scroll
+///    position to go outside its scroll bounds.
+///  * Interspersed with the [ScrollUpdateNotification]s and
+///    [OverscrollNotification]s are zero or more [UserScrollNotification]s,
+///    which indicate that the user has changed the direction in which they are
+///    scrolling.
+///  * A [ScrollEndNotification], which indicates that the widget has stopped
+///    scrolling.
+///  * A [UserScrollNotification], with a [UserScrollNotification.direction] of
+///    [ScrollDirection.idle].
+///
+/// Notifications bubble up through the tree, which means a given
+/// [NotificationListener] will receive notifications for all descendant
+/// [Scrollable] widgets. To focus on notifications from the nearest
+/// [Scrollable] descendant, check that the [depth] property of the notification
+/// is zero.
+///
+/// When a scroll notification is received by a [NotificationListener], the
+/// listener will have already completed build and layout, and it is therefore
+/// too late for that widget to call [State.setState]. Any attempt to adjust the
+/// build or layout based on a scroll notification would result in a layout that
+/// lagged one frame behind, which is a poor user experience. Scroll
+/// notifications are therefore primarily useful for paint effects (since paint
+/// happens after layout). The [GlowingOverscrollIndicator] and [Scrollbar]
+/// widgets are examples of paint effects that use scroll notifications.
+///
+/// To drive layout based on the scroll position, consider listening to the
+/// [ScrollPosition] directly (or indirectly via a [ScrollController]).
 abstract class ScrollNotification extends LayoutChangedNotification with ViewportNotificationMixin {
-  /// Creates a notification about scrolling.
+  /// Initializes fields for subclasses.
   ScrollNotification({
-    @required ScrollableState scrollable,
-  }) : axisDirection = scrollable.widget.axisDirection,
-       metrics = scrollable.position.getMetrics(),
-       context = scrollable.context;
+    @required this.metrics,
+    @required this.context,
+  });
 
-  /// The direction that positive scroll offsets indicate.
-  final AxisDirection axisDirection;
-
-  Axis get axis => axisDirectionToAxis(axisDirection);
-
+  /// A description of a [Scrollable]'s contents, useful for modeling the state
+  /// of its viewport.
   final ScrollMetrics metrics;
 
-  /// The build context of the [Scrollable] that fired this notification.
+  /// The build context of the widget that fired this notification.
   ///
   /// This can be used to find the scrollable's render objects to determine the
   /// size of the viewport, for instance.
@@ -115,17 +101,28 @@ abstract class ScrollNotification extends LayoutChangedNotification with Viewpor
   @override
   void debugFillDescription(List<String> description) {
     super.debugFillDescription(description);
-    description.add('$axisDirection');
-    description.add('metrics: $metrics');
+    description.add('$metrics');
   }
 }
 
+/// A notification that a [Scrollable] widget has started scrolling.
+///
+/// See also:
+///
+///  * [ScrollEndNotification], which indicates that scrolling has stopped.
+///  * [ScrollNotification], which describes the notification lifecycle.
 class ScrollStartNotification extends ScrollNotification {
+  /// Creates a notification that a [Scrollable] widget has started scrolling.
   ScrollStartNotification({
-    @required ScrollableState scrollable,
+    @required ScrollMetrics metrics,
+    @required BuildContext context,
     this.dragDetails,
-  }) : super(scrollable: scrollable);
+  }) : super(metrics: metrics, context: context);
 
+  /// If the [Scrollable] started scrolling because of a drag, the details about
+  /// that drag start.
+  ///
+  /// Otherwise, null.
   final DragStartDetails dragDetails;
 
   @override
@@ -136,13 +133,28 @@ class ScrollStartNotification extends ScrollNotification {
   }
 }
 
+/// A notification that a [Scrollable] widget has changed its scroll position.
+///
+/// See also:
+///
+///  * [OverscrollNotification], which indicates that a [Scrollable] widget
+///    has not changed its scroll position because the change would have caused
+///    its scroll position to go outside its scroll bounds.
+///  * [ScrollNotification], which describes the notification lifecycle.
 class ScrollUpdateNotification extends ScrollNotification {
+  /// Creates a notification that a [Scrollable] widget has changed its scroll
+  /// position.
   ScrollUpdateNotification({
-    @required ScrollableState scrollable,
+    @required ScrollMetrics metrics,
+    @required BuildContext context,
     this.dragDetails,
     this.scrollDelta,
-  }) : super(scrollable: scrollable);
+  }) : super(metrics: metrics, context: context);
 
+  /// If the [Scrollable] changed its scroll position because of a drag, the
+  /// details about that drag update.
+  ///
+  /// Otherwise, null.
   final DragUpdateDetails dragDetails;
 
   /// The distance by which the [Scrollable] was scrolled, in logical pixels.
@@ -157,19 +169,34 @@ class ScrollUpdateNotification extends ScrollNotification {
   }
 }
 
+/// A notification that a [Scrollable] widget has not changed its scroll position
+/// because the change would have caused its scroll position to go outside of
+/// its scroll bounds.
+///
+/// See also:
+///
+///  * [ScrollUpdateNotification], which indicates that a [Scrollable] widget
+///    has changed its scroll position.
+///  * [ScrollNotification], which describes the notification lifecycle.
 class OverscrollNotification extends ScrollNotification {
+  /// Creates a notification that a [Scrollable] widget has changed its scroll
+  /// position outside of its scroll bounds.
   OverscrollNotification({
-    @required ScrollableState scrollable,
+    @required ScrollMetrics metrics,
+    @required BuildContext context,
     this.dragDetails,
     @required this.overscroll,
     this.velocity: 0.0,
-  }) : super(scrollable: scrollable) {
-    assert(overscroll != null);
-    assert(overscroll.isFinite);
-    assert(overscroll != 0.0);
-    assert(velocity != null);
-  }
+  }) : assert(overscroll != null),
+       assert(overscroll.isFinite),
+       assert(overscroll != 0.0),
+       assert(velocity != null),
+       super(metrics: metrics, context: context);
 
+  /// If the [Scrollable] overscrolled because of a drag, the details about that
+  /// drag update.
+  ///
+  /// Otherwise, null.
   final DragUpdateDetails dragDetails;
 
   /// The number of logical pixels that the [Scrollable] avoided scrolling.
@@ -196,12 +223,31 @@ class OverscrollNotification extends ScrollNotification {
   }
 }
 
+/// A notification that a [Scrollable] widget has stopped scrolling.
+///
+/// See also:
+///
+///  * [ScrollStartNotification], which indicates that scrolling has started.
+///  * [ScrollNotification], which describes the notification lifecycle.
 class ScrollEndNotification extends ScrollNotification {
+  /// Creates a notification that a [Scrollable] widget has stopped scrolling.
   ScrollEndNotification({
-    @required ScrollableState scrollable,
+    @required ScrollMetrics metrics,
+    @required BuildContext context,
     this.dragDetails,
-  }) : super(scrollable: scrollable);
+  }) : super(metrics: metrics, context: context);
 
+  /// If the [Scrollable] stopped scrolling because of a drag, the details about
+  /// that drag end.
+  ///
+  /// Otherwise, null.
+  ///
+  /// If a drag ends with some residual velocity, a typical [ScrollPhysics] will
+  /// start a ballistic scroll, which delays the [ScrollEndNotification] until
+  /// the ballistic simulation completes, at which time [dragDetails] will
+  /// be null. If the residual velocity is too small to trigger ballistic
+  /// scrolling, then the [ScrollEndNotification] will be dispatched immediately
+  /// and [dragDetails] will be non-null.
   final DragEndDetails dragDetails;
 
   @override
@@ -212,12 +258,22 @@ class ScrollEndNotification extends ScrollNotification {
   }
 }
 
+/// A notification that the user has changed the direction in which they are
+/// scrolling.
+///
+/// See also:
+///
+///  * [ScrollNotification], which describes the notification lifecycle.
 class UserScrollNotification extends ScrollNotification {
+  /// Creates a notification that the user has changed the direction in which
+  /// they are scrolling.
   UserScrollNotification({
-    @required ScrollableState scrollable,
+    @required ScrollMetrics metrics,
+    @required BuildContext context,
     this.direction,
-  }) : super(scrollable: scrollable);
+  }) : super(metrics: metrics, context: context);
 
+  /// The direction in which the user is scrolling.
   final ScrollDirection direction;
 
   @override
@@ -225,4 +281,15 @@ class UserScrollNotification extends ScrollNotification {
     super.debugFillDescription(description);
     description.add('direction: $direction');
   }
+}
+
+/// A predicate for [ScrollNotification], used to customize widgets that
+/// listen to notifications from their children.
+typedef bool ScrollNotificationPredicate(ScrollNotification notification);
+
+/// A [ScrollNotificationPredicate] that checks whether 
+/// `notification.depth == 0`, which means that the notification did not bubble
+/// through any intervening scrolling widgets.
+bool defaultScrollNotificationPredicate(ScrollNotification notification) {
+  return notification.depth == 0;
 }

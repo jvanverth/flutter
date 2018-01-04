@@ -166,9 +166,9 @@ abstract class RenderDecoratedSector extends RenderSector {
     if (_decoration == null)
       return;
 
-    if (_decoration.backgroundColor != null) {
+    if (_decoration.color != null) {
       final Canvas canvas = context.canvas;
-      final Paint paint = new Paint()..color = _decoration.backgroundColor;
+      final Paint paint = new Paint()..color = _decoration.color;
       final Path path = new Path();
       final double outerRadius = (parentData.radius + deltaRadius);
       final Rect outerBounds = new Rect.fromLTRB(offset.dx-outerRadius, offset.dy-outerRadius, offset.dx+outerRadius, offset.dy+outerRadius);
@@ -282,12 +282,12 @@ class RenderSectorRing extends RenderSectorWithChildren {
 
   @override
   void performLayout() {
-    assert(this.parentData is SectorParentData);
+    assert(parentData is SectorParentData);
     deltaRadius = constraints.constrainDeltaRadius(desiredDeltaRadius);
     assert(deltaRadius < double.INFINITY);
     final double innerDeltaRadius = deltaRadius - padding * 2.0;
-    final double childRadius = this.parentData.radius + padding;
-    final double paddingTheta = math.atan(padding / (this.parentData.radius + deltaRadius));
+    final double childRadius = parentData.radius + padding;
+    final double paddingTheta = math.atan(padding / (parentData.radius + deltaRadius));
     double innerTheta = paddingTheta; // increments with each child
     double remainingDeltaTheta = constraints.maxDeltaTheta - (innerTheta + paddingTheta);
     RenderSector child = firstChild;
@@ -367,11 +367,11 @@ class RenderSectorSlice extends RenderSectorWithChildren {
 
   @override
   SectorDimensions getIntrinsicDimensions(SectorConstraints constraints, double radius) {
-    assert(this.parentData is SectorParentData);
-    final double paddingTheta = math.atan(padding / this.parentData.radius);
+    assert(parentData is SectorParentData);
+    final double paddingTheta = math.atan(padding / parentData.radius);
     final double outerDeltaTheta = constraints.constrainDeltaTheta(desiredDeltaTheta);
     final double innerDeltaTheta = outerDeltaTheta - paddingTheta * 2.0;
-    double childRadius = this.parentData.radius + padding;
+    double childRadius = parentData.radius + padding;
     double remainingDeltaRadius = constraints.maxDeltaRadius - (padding * 2.0);
     RenderSector child = firstChild;
     while (child != null) {
@@ -388,19 +388,19 @@ class RenderSectorSlice extends RenderSectorWithChildren {
       remainingDeltaRadius -= padding;
     }
     return new SectorDimensions.withConstraints(constraints,
-                                                deltaRadius: childRadius - this.parentData.radius,
+                                                deltaRadius: childRadius - parentData.radius,
                                                 deltaTheta: outerDeltaTheta);
   }
 
   @override
   void performLayout() {
-    assert(this.parentData is SectorParentData);
+    assert(parentData is SectorParentData);
     deltaTheta = constraints.constrainDeltaTheta(desiredDeltaTheta);
     assert(deltaTheta <= kTwoPi);
-    final double paddingTheta = math.atan(padding / this.parentData.radius);
-    final double innerTheta = this.parentData.theta + paddingTheta;
+    final double paddingTheta = math.atan(padding / parentData.radius);
+    final double innerTheta = parentData.theta + paddingTheta;
     final double innerDeltaTheta = deltaTheta - paddingTheta * 2.0;
-    double childRadius = this.parentData.radius + padding;
+    double childRadius = parentData.radius + padding;
     double remainingDeltaRadius = constraints.maxDeltaRadius - (padding * 2.0);
     RenderSector child = firstChild;
     while (child != null) {
@@ -418,7 +418,7 @@ class RenderSectorSlice extends RenderSectorWithChildren {
       childRadius += padding;
       remainingDeltaRadius -= padding;
     }
-    deltaRadius = childRadius - this.parentData.radius;
+    deltaRadius = childRadius - parentData.radius;
   }
 
   // offset must point to the center of our circle
@@ -504,19 +504,18 @@ class RenderBoxToRenderSectorAdapter extends RenderBox with RenderObjectWithChil
 
   @override
   void performLayout() {
-    if (child == null) {
+    if (child == null || (!constraints.hasBoundedWidth && !constraints.hasBoundedHeight)) {
       size = constraints.constrain(Size.zero);
-    } else {
-      assert(child is RenderSector);
-      assert(constraints.maxWidth < double.INFINITY || constraints.maxHeight < double.INFINITY);
-      final double maxChildDeltaRadius = math.min(constraints.maxWidth, constraints.maxHeight) / 2.0 - innerRadius;
-      assert(child.parentData is SectorParentData);
-      child.parentData.radius = innerRadius;
-      child.parentData.theta = 0.0;
-      child.layout(new SectorConstraints(maxDeltaRadius: maxChildDeltaRadius), parentUsesSize: true);
-      final double dimension = (innerRadius + child.deltaRadius) * 2.0;
-      size = constraints.constrain(new Size(dimension, dimension));
+      return;
     }
+    assert(child is RenderSector);
+    assert(child.parentData is SectorParentData);
+    final double maxChildDeltaRadius = math.min(constraints.maxWidth, constraints.maxHeight) / 2.0 - innerRadius;
+    child.parentData.radius = innerRadius;
+    child.parentData.theta = 0.0;
+    child.layout(new SectorConstraints(maxDeltaRadius: maxChildDeltaRadius), parentUsesSize: true);
+    final double dimension = (innerRadius + child.deltaRadius) * 2.0;
+    size = constraints.constrain(new Size(dimension, dimension));
   }
 
   @override
@@ -558,7 +557,7 @@ class RenderSolidColor extends RenderDecoratedSector {
   RenderSolidColor(this.backgroundColor, {
     this.desiredDeltaRadius: double.INFINITY,
     this.desiredDeltaTheta: kTwoPi
-  }) : super(new BoxDecoration(backgroundColor: backgroundColor));
+  }) : super(new BoxDecoration(color: backgroundColor));
 
   double desiredDeltaRadius;
   double desiredDeltaTheta;
@@ -578,9 +577,9 @@ class RenderSolidColor extends RenderDecoratedSector {
   @override
   void handleEvent(PointerEvent event, HitTestEntry entry) {
     if (event is PointerDownEvent) {
-      decoration = const BoxDecoration(backgroundColor: const Color(0xFFFF0000));
+      decoration = const BoxDecoration(color: const Color(0xFFFF0000));
     } else if (event is PointerUpEvent) {
-      decoration = new BoxDecoration(backgroundColor: backgroundColor);
+      decoration = new BoxDecoration(color: backgroundColor);
     }
   }
 }

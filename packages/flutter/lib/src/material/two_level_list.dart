@@ -6,30 +6,43 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'colors.dart';
-import 'icon.dart';
-import 'icon_theme.dart';
-import 'icon_theme_data.dart';
 import 'icons.dart';
 import 'list_tile.dart';
 import 'theme.dart';
 import 'theme_data.dart';
 
+/// This enum is deprecated. Please use [ListTileTheme] instead.
+enum MaterialListType {
+  /// A list tile that contains a single line of text.
+  oneLine,
+
+  /// A list tile that contains a [CircleAvatar] followed by a single line of text.
+  oneLineWithAvatar,
+
+  /// A list tile that contains two lines of text.
+  twoLine,
+
+  /// A list tile that contains three lines of text.
+  threeLine,
+}
+
+/// This constant is deprecated. The [ListTile] class sizes itself based on
+/// its content and [ListTileTheme].
+@deprecated
+Map<MaterialListType, double> kListTileExtent = const <MaterialListType, double>{
+  MaterialListType.oneLine: 48.0,
+  MaterialListType.oneLineWithAvatar: 56.0,
+  MaterialListType.twoLine: 72.0,
+  MaterialListType.threeLine: 88.0,
+};
+
 const Duration _kExpand = const Duration(milliseconds: 200);
 
-/// An item in a [TwoLevelList] or a [TwoLevelSublist].
-///
-/// A two-level list item is similar to a [ListTile], but a two-level list item
-/// automatically sizes itself to fit properly within its ancestor
-/// [TwoLevelList].
-///
-/// See also:
-///
-///  * [TwoLevelList]
-///  * [TwoLevelSublist]
-///  * [ListTile]
+/// This class is deprecated. Please use [ListTile] instead.
+@deprecated
 class TwoLevelListItem extends StatelessWidget {
   /// Creates an item in a two-level list.
-  TwoLevelListItem({
+  const TwoLevelListItem({
     Key key,
     this.leading,
     @required this.title,
@@ -37,9 +50,8 @@ class TwoLevelListItem extends StatelessWidget {
     this.enabled: true,
     this.onTap,
     this.onLongPress
-  }) : super(key: key) {
-    assert(title != null);
-  }
+  }) : assert(title != null),
+       super(key: key);
 
   /// A widget to display before the title.
   ///
@@ -92,19 +104,11 @@ class TwoLevelListItem extends StatelessWidget {
   }
 }
 
-/// An item in a [TwoLevelList] that can expand and collapse.
-///
-/// A two-level sublist is similar to a [ListTile], but the trailing widget is
-/// a button that expands or collapses a sublist of items.
-///
-/// See also:
-///
-///  * [TwoLevelList]
-///  * [TwoLevelListItem]
-///  * [ListTile]
+/// This class is deprecated. Please use [ExpansionTile] instead.
+@deprecated
 class TwoLevelSublist extends StatefulWidget {
-  /// Creates an item in a two-level list that can expland and collapse.
-  TwoLevelSublist({
+  /// Creates an item in a two-level list that can expand and collapse.
+  const TwoLevelSublist({
     Key key,
     this.leading,
     @required this.title,
@@ -126,7 +130,7 @@ class TwoLevelSublist extends StatefulWidget {
   /// Called when the sublist expands or collapses.
   ///
   /// When the sublist starts expanding, this function is called with the value
-  /// `true`. When the sublist starts collapsing, this function is called with
+  /// true. When the sublist starts collapsing, this function is called with
   /// the value false.
   final ValueChanged<bool> onOpenChanged;
 
@@ -142,6 +146,7 @@ class TwoLevelSublist extends StatefulWidget {
   _TwoLevelSublistState createState() => new _TwoLevelSublistState();
 }
 
+@deprecated
 class _TwoLevelSublistState extends State<TwoLevelSublist> with SingleTickerProviderStateMixin {
   AnimationController _controller;
   CurvedAnimation _easeOutAnimation;
@@ -193,7 +198,7 @@ class _TwoLevelSublistState extends State<TwoLevelSublist> with SingleTickerProv
   Widget buildList(BuildContext context, Widget child) {
     return new Container(
       decoration: new BoxDecoration(
-        backgroundColor: _backgroundColor.evaluate(_easeOutAnimation),
+        color: _backgroundColor.evaluate(_easeOutAnimation),
         border: new Border(
           top: new BorderSide(color: _borderColor.evaluate(_easeOutAnimation)),
           bottom: new BorderSide(color: _borderColor.evaluate(_easeOutAnimation))
@@ -248,25 +253,19 @@ class _TwoLevelSublistState extends State<TwoLevelSublist> with SingleTickerProv
   }
 }
 
-/// A scrollable list of items that can expand and collapse.
-///
-/// See also:
-///
-///  * [TwoLevelSublist]
-///  * [TwoLevelListItem]
-///  * [ListView], for lists that only have one level.
+/// This class is deprecated. Please use [ListView] and [ListTileTheme] instead.
+@deprecated
 class TwoLevelList extends StatelessWidget {
   /// Creates a scrollable list of items that can expand and collapse.
   ///
   /// The [type] argument must not be null.
-  TwoLevelList({
+  const TwoLevelList({
     Key key,
     this.children: const <Widget>[],
     this.type: MaterialListType.twoLine,
-    this.padding
-  }) : super(key: key) {
-    assert(type != null);
-  }
+    this.padding,
+  }) : assert(type != null),
+       super(key: key);
 
   /// The widgets to display in this list.
   ///
@@ -277,7 +276,7 @@ class TwoLevelList extends StatelessWidget {
   final MaterialListType type;
 
   /// The amount of space by which to inset the children inside the viewport.
-  final EdgeInsets padding;
+  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {

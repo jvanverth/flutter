@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 enum IndicatorType { overscroll, refresh }
 
 class OverscrollDemo extends StatefulWidget {
-  OverscrollDemo({ Key key }) : super(key: key);
+  const OverscrollDemo({ Key key }) : super(key: key);
 
   static const String routeName = '/material/overscroll';
 
@@ -29,7 +29,7 @@ class OverscrollDemoState extends State<OverscrollDemo> {
     new Timer(const Duration(seconds: 3), () { completer.complete(null); });
     return completer.future.then((_) {
        _scaffoldKey.currentState?.showSnackBar(new SnackBar(
-         content: const Text("Refresh complete"),
+         content: const Text('Refresh complete'),
          action: new SnackBarAction(
            label: 'RETRY',
            onPressed: () {

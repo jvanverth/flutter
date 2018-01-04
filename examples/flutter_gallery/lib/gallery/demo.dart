@@ -33,7 +33,7 @@ class ComponentDemoTabData {
 }
 
 class TabbedComponentDemoScaffold extends StatelessWidget {
-  TabbedComponentDemoScaffold({
+  const TabbedComponentDemoScaffold({
     this.title,
     this.demos
   });
@@ -77,16 +77,20 @@ class TabbedComponentDemoScaffold extends StatelessWidget {
         ),
         body: new TabBarView(
           children: demos.map((ComponentDemoTabData demo) {
-            return new Column(
-              children: <Widget>[
-                new Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: new Text(demo.description,
-                    style: Theme.of(context).textTheme.subhead
-                  )
-                ),
-                new Expanded(child: demo.demoWidget)
-              ],
+            return new SafeArea(
+              top: false,
+              bottom: false,
+              child: new Column(
+                children: <Widget>[
+                  new Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: new Text(demo.description,
+                      style: Theme.of(context).textTheme.subhead
+                    )
+                  ),
+                  new Expanded(child: demo.demoWidget)
+                ],
+              ),
             );
           }).toList(),
         ),
@@ -96,7 +100,7 @@ class TabbedComponentDemoScaffold extends StatelessWidget {
 }
 
 class FullScreenCodeDialog extends StatefulWidget {
-  FullScreenCodeDialog({ this.exampleCodeTag });
+  const FullScreenCodeDialog({ this.exampleCodeTag });
 
   final String exampleCodeTag;
 
@@ -128,8 +132,8 @@ class FullScreenCodeDialogState extends State<FullScreenCodeDialog> {
 
     Widget body;
     if (_exampleCode == null) {
-      body = new Center(
-        child: new CircularProgressIndicator()
+      body = const Center(
+        child: const CircularProgressIndicator()
       );
     } else {
       body = new SingleChildScrollView(

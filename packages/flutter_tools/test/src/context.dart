@@ -8,10 +8,12 @@ import 'package:flutter_tools/src/artifacts.dart';
 import 'package:flutter_tools/src/base/config.dart';
 import 'package:flutter_tools/src/base/context.dart';
 import 'package:flutter_tools/src/base/file_system.dart';
+import 'package:flutter_tools/src/base/io.dart';
 import 'package:flutter_tools/src/base/logger.dart';
 import 'package:flutter_tools/src/base/os.dart';
 import 'package:flutter_tools/src/base/platform.dart';
 import 'package:flutter_tools/src/base/port_scanner.dart';
+import 'package:flutter_tools/src/base/terminal.dart';
 import 'package:flutter_tools/src/cache.dart';
 import 'package:flutter_tools/src/devfs.dart';
 import 'package:flutter_tools/src/device.dart';
@@ -23,6 +25,7 @@ import 'package:flutter_tools/src/usage.dart';
 import 'package:flutter_tools/src/version.dart';
 import 'package:mockito/mockito.dart';
 import 'package:process/process.dart';
+import 'package:quiver/time.dart';
 import 'package:test/test.dart';
 
 import 'common.dart';
@@ -39,6 +42,7 @@ typedef void ContextInitializer(AppContext testContext);
 
 void _defaultInitializeContext(AppContext testContext) {
   testContext
+    ..putIfAbsent(AnsiTerminal, () => new AnsiTerminal())
     ..putIfAbsent(DeviceManager, () => new MockDeviceManager())
     ..putIfAbsent(DevFSConfig, () => new DevFSConfig())
     ..putIfAbsent(Doctor, () => new MockDoctor())
@@ -55,25 +59,44 @@ void _defaultInitializeContext(AppContext testContext) {
     })
     ..putIfAbsent(SimControl, () => new MockSimControl())
     ..putIfAbsent(Usage, () => new MockUsage())
-    ..putIfAbsent(FlutterVersion, () => new MockFlutterVersion());
+    ..putIfAbsent(FlutterVersion, () => new MockFlutterVersion())
+    ..putIfAbsent(Clock, () => const Clock())
+    ..putIfAbsent(HttpClient, () => new MockHttpClient());
 }
 
 void testUsingContext(String description, dynamic testMethod(), {
   Timeout timeout,
   Map<Type, Generator> overrides: const <Type, Generator>{},
   ContextInitializer initializeContext: _defaultInitializeContext,
+  String testOn,
   bool skip, // should default to `false`, but https://github.com/dart-lang/test/issues/545 doesn't allow this
 }) {
+
+  // Ensure we don't rely on the default [Config] constructor which will
+  // leak a sticky $HOME/.flutter_settings behind!
+  Directory configDir;
+  tearDown(() {
+    configDir?.deleteSync(recursive: true);
+    configDir = null;
+  });
+  Config buildConfig(FileSystem fs) {
+    configDir = fs.systemTempDirectory.createTempSync('config-dir');
+    final File settingsFile = fs.file(
+        fs.path.join(configDir.path, '.flutter_settings'));
+    return new Config(settingsFile);
+  }
+
   test(description, () async {
     final AppContext testContext = new AppContext();
 
     // The context always starts with these value since others depend on them.
     testContext
+      ..putIfAbsent(Stdio, () => const Stdio())
       ..putIfAbsent(Platform, () => const LocalPlatform())
       ..putIfAbsent(FileSystem, () => const LocalFileSystem())
       ..putIfAbsent(ProcessManager, () => const LocalProcessManager())
       ..putIfAbsent(Logger, () => new BufferLogger())
-      ..putIfAbsent(Config, () => new Config());
+      ..putIfAbsent(Config, () => buildConfig(testContext[FileSystem]));
 
     // Apply the initializer after seeding the base value above.
     initializeContext(testContext);
@@ -102,7 +125,7 @@ void testUsingContext(String description, dynamic testMethod(), {
       rethrow;
     }
 
-  }, timeout: timeout, skip: skip);
+  }, timeout: timeout, testOn: testOn, skip: skip);
 }
 
 void _printBufferedErrors(AppContext testContext) {
@@ -127,30 +150,51 @@ class MockPortScanner extends PortScanner {
 class MockDeviceManager implements DeviceManager {
   List<Device> devices = <Device>[];
 
+  String _specifiedDeviceId;
+
   @override
-  String specifiedDeviceId;
+  String get specifiedDeviceId {
+    if (_specifiedDeviceId == null || _specifiedDeviceId == 'all')
+      return null;
+    return _specifiedDeviceId;
+  }
+
+  @override
+  set specifiedDeviceId(String id) {
+    _specifiedDeviceId = id;
+  }
 
   @override
   bool get hasSpecifiedDeviceId => specifiedDeviceId != null;
 
   @override
-  Future<List<Device>> getAllConnectedDevices() => new Future<List<Device>>.value(devices);
-
-  @override
-  Future<List<Device>> getDevicesById(String deviceId) async {
-    return devices.where((Device device) => device.id == deviceId).toList();
+  bool get hasSpecifiedAllDevices {
+    return _specifiedDeviceId != null && _specifiedDeviceId == 'all';
   }
 
   @override
-  Future<List<Device>> getDevices() async {
-    if (specifiedDeviceId == null) {
-      return getAllConnectedDevices();
-    } else {
-      return getDevicesById(specifiedDeviceId);
-    }
+  Stream<Device> getAllConnectedDevices() => new Stream<Device>.fromIterable(devices);
+
+  @override
+  Stream<Device> getDevicesById(String deviceId) {
+    return new Stream<Device>.fromIterable(
+        devices.where((Device device) => device.id == deviceId));
+  }
+
+  @override
+  Stream<Device> getDevices() {
+    return hasSpecifiedDeviceId
+        ? getDevicesById(specifiedDeviceId)
+        : getAllConnectedDevices();
   }
 
   void addDevice(Device device) => devices.add(device);
+
+  @override
+  bool get canListAnything => true;
+
+  @override
+  Future<List<String>> getDeviceDiagnostics() async => <String>[];
 }
 
 class MockDoctor extends Doctor {
@@ -165,7 +209,7 @@ class MockDoctor extends Doctor {
 
 class MockSimControl extends Mock implements SimControl {
   MockSimControl() {
-    when(this.getConnectedDevices()).thenReturn(<SimDevice>[]);
+    when(getConnectedDevices()).thenReturn(<SimDevice>[]);
   }
 }
 
@@ -199,16 +243,13 @@ class MockUsage implements Usage {
   String get clientId => '00000000-0000-4000-0000-000000000000';
 
   @override
-  void sendCommand(String command) { }
+  void sendCommand(String command, { Map<String, String> parameters }) { }
 
   @override
-  void sendEvent(String category, String parameter) { }
+  void sendEvent(String category, String parameter, { Map<String, String> parameters }) { }
 
   @override
-  void sendTiming(String category, String variableName, Duration duration) { }
-
-  @override
-  UsageTimer startTimer(String event) => new _MockUsageTimer(event);
+  void sendTiming(String category, String variableName, Duration duration, { String label }) { }
 
   @override
   void sendException(dynamic exception, StackTrace trace) { }
@@ -223,14 +264,8 @@ class MockUsage implements Usage {
   void printWelcome() { }
 }
 
-class _MockUsageTimer implements UsageTimer {
-  _MockUsageTimer(this.event);
-
-  @override
-  final String event;
-
-  @override
-  void finish() { }
-}
-
 class MockFlutterVersion extends Mock implements FlutterVersion {}
+
+class MockClock extends Mock implements Clock {}
+
+class MockHttpClient extends Mock implements HttpClient {}

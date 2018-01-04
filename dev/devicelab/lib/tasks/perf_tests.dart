@@ -4,26 +4,19 @@
 
 import 'dart:async';
 import 'dart:convert' show JSON;
+import 'dart:io';
 
 import '../framework/adb.dart';
 import '../framework/framework.dart';
 import '../framework/ios.dart';
 import '../framework/utils.dart';
 
-
-TaskFunction createPlatformServiceDriverTest() {
-  return new DriverTest(
-      '${flutterDirectory.path}/examples/platform_channel',
-      'test_driver/button_tap.dart',
-  );
-}
-
 TaskFunction createComplexLayoutScrollPerfTest() {
   return new PerfTest(
     '${flutterDirectory.path}/dev/benchmarks/complex_layout',
     'test_driver/scroll_perf.dart',
     'complex_layout_scroll_perf',
-  );
+  ).run;
 }
 
 TaskFunction createComplexLayoutScrollMemoryTest() {
@@ -31,34 +24,34 @@ TaskFunction createComplexLayoutScrollMemoryTest() {
     '${flutterDirectory.path}/dev/benchmarks/complex_layout',
     'com.yourcompany.complexLayout',
     testTarget: 'test_driver/scroll_perf.dart',
-  );
+  ).run;
 }
 
 TaskFunction createFlutterGalleryStartupTest() {
   return new StartupTest(
     '${flutterDirectory.path}/examples/flutter_gallery',
-  );
+  ).run;
 }
 
 TaskFunction createComplexLayoutStartupTest() {
   return new StartupTest(
     '${flutterDirectory.path}/dev/benchmarks/complex_layout',
-  );
+  ).run;
 }
 
-TaskFunction createFlutterGalleryBuildTest() {
-  return new BuildTest('${flutterDirectory.path}/examples/flutter_gallery');
+TaskFunction createFlutterGalleryCompileTest() {
+  return new CompileTest('${flutterDirectory.path}/examples/flutter_gallery').run;
 }
 
-TaskFunction createComplexLayoutBuildTest() {
-  return new BuildTest('${flutterDirectory.path}/dev/benchmarks/complex_layout');
+TaskFunction createComplexLayoutCompileTest() {
+  return new CompileTest('${flutterDirectory.path}/dev/benchmarks/complex_layout').run;
 }
 
 TaskFunction createHelloWorldMemoryTest() {
   return new MemoryTest(
     '${flutterDirectory.path}/examples/hello_world',
-    'io.flutter.examples.HelloWorld',
-  );
+    'io.flutter.examples.hello_world',
+  ).run;
 }
 
 TaskFunction createGalleryNavigationMemoryTest() {
@@ -66,42 +59,60 @@ TaskFunction createGalleryNavigationMemoryTest() {
     '${flutterDirectory.path}/examples/flutter_gallery',
     'io.flutter.examples.gallery',
     testTarget: 'test_driver/memory_nav.dart',
-  );
+  ).run;
 }
 
 TaskFunction createGalleryBackButtonMemoryTest() {
   return new AndroidBackButtonMemoryTest(
     '${flutterDirectory.path}/examples/flutter_gallery',
     'io.flutter.examples.gallery',
-  );
+    'io.flutter.examples.gallery.MainActivity',
+  ).run;
 }
 
 TaskFunction createFlutterViewStartupTest() {
   return new StartupTest(
       '${flutterDirectory.path}/examples/flutter_view',
       reportMetrics: false,
-  );
+  ).run;
 }
+
+TaskFunction createBasicMaterialCompileTest() {
+  return () async {
+    const String sampleAppName = 'sample_flutter_app';
+    final Directory sampleDir = dir('${Directory.systemTemp.path}/$sampleAppName');
+
+    if (await sampleDir.exists())
+      rmTree(sampleDir);
+
+    await inDirectory(Directory.systemTemp, () async {
+      await flutter('create', options: <String>[sampleAppName]);
+    });
+
+    if (!(await sampleDir.exists()))
+      throw 'Failed to create default Flutter app in ${sampleDir.path}';
+
+    return new CompileTest(sampleDir.path).run();
+  };
+}
+
 
 /// Measure application startup performance.
 class StartupTest {
   static const Duration _startupTimeout = const Duration(minutes: 5);
 
-  StartupTest(this.testDirectory, { this.reportMetrics: true });
+  const StartupTest(this.testDirectory, { this.reportMetrics: true });
 
   final String testDirectory;
   final bool reportMetrics;
 
-  Future<TaskResult> call() async {
+  Future<TaskResult> run() async {
     return await inDirectory(testDirectory, () async {
       final String deviceId = (await devices.workingDevice).deviceId;
       await flutter('packages', options: <String>['get']);
 
-      if (deviceOperatingSystem == DeviceOperatingSystem.ios) {
+      if (deviceOperatingSystem == DeviceOperatingSystem.ios)
         await prepareProvisioningCertificates(testDirectory);
-        // This causes an Xcode project to be created.
-        await flutter('build', options: <String>['ios', '--profile']);
-      }
 
       await flutter('run', options: <String>[
         '--verbose',
@@ -125,25 +136,21 @@ class StartupTest {
 /// Measures application runtime performance, specifically per-frame
 /// performance.
 class PerfTest {
-
-  PerfTest(this.testDirectory, this.testTarget, this.timelineFileName);
+  const PerfTest(this.testDirectory, this.testTarget, this.timelineFileName);
 
   final String testDirectory;
   final String testTarget;
   final String timelineFileName;
 
-  Future<TaskResult> call() {
+  Future<TaskResult> run() {
     return inDirectory(testDirectory, () async {
       final Device device = await devices.workingDevice;
       await device.unlock();
       final String deviceId = device.deviceId;
       await flutter('packages', options: <String>['get']);
 
-      if (deviceOperatingSystem == DeviceOperatingSystem.ios) {
+      if (deviceOperatingSystem == DeviceOperatingSystem.ios)
         await prepareProvisioningCertificates(testDirectory);
-        // This causes an Xcode project to be created.
-        await flutter('build', options: <String>['ios', '--profile']);
-      }
 
       await flutter('drive', options: <String>[
         '-v',
@@ -175,73 +182,135 @@ class PerfTest {
   }
 }
 
-
-class DriverTest {
-
-  DriverTest(this.testDirectory, this.testTarget);
-
-  final String testDirectory;
-  final String testTarget;
-
-  Future<TaskResult> call() {
-    return inDirectory(testDirectory, () async {
-      final Device device = await devices.workingDevice;
-      await device.unlock();
-      final String deviceId = device.deviceId;
-      await flutter('packages', options: <String>['get']);
-
-      if (deviceOperatingSystem == DeviceOperatingSystem.ios) {
-        await prepareProvisioningCertificates(testDirectory);
-        // This causes an Xcode project to be created.
-        await flutter('build', options: <String>['ios', '--profile']);
-      }
-
-      await flutter('drive', options: <String>[
-        '-v',
-        '-t',
-        testTarget,
-        '-d',
-        deviceId,
-      ]);
-
-      return new TaskResult.success(null);
-    });
-  }
-}
-
-class BuildTest {
-
-  BuildTest(this.testDirectory);
+/// Measures how long it takes to compile a Flutter app and how big the compiled
+/// code is.
+class CompileTest {
+  const CompileTest(this.testDirectory);
 
   final String testDirectory;
 
-  Future<TaskResult> call() async {
+  Future<TaskResult> run() async {
     return await inDirectory(testDirectory, () async {
       final Device device = await devices.workingDevice;
       await device.unlock();
       await flutter('packages', options: <String>['get']);
 
-      final Stopwatch watch = new Stopwatch()..start();
-      final String buildLog = await evalFlutter('build', options: <String>[
-        'aot',
-        '-v',
-        '--profile',
-        '--no-pub',
-        '--target-platform', 'android-arm'  // Generate blobs instead of assembly.
-      ]);
-      watch.stop();
+      final Map<String, dynamic> metrics = <String, dynamic>{}
+        ..addAll(await _compileAot())
+        ..addAll(await _compileApp())
+        ..addAll(await _compileDebug())
+        ..addAll(_suffix(await _compileAot(previewDart2: true), '__preview_dart_2'))
+        ..addAll(_suffix(await _compileApp(previewDart2: true), '__preview_dart_2'))
+        ..addAll(_suffix(await _compileDebug(previewDart2: true), '__preview_dart_2'));
 
-      final RegExp metricExpression = new RegExp(r'([a-zA-Z]+)\(CodeSize\)\: (\d+)');
-
-      final Map<String, dynamic> data = new Map<String, dynamic>.fromIterable(
-        metricExpression.allMatches(buildLog),
-        key: (Match m) => _sdkNameToMetricName(m.group(1)),
-        value: (Match m) => int.parse(m.group(2)),
-      );
-      data['aot_snapshot_build_millis'] = watch.elapsedMilliseconds;
-
-      return new TaskResult.success(data, benchmarkScoreKeys: data.keys.toList());
+      return new TaskResult.success(metrics, benchmarkScoreKeys: metrics.keys.toList());
     });
+  }
+
+  static Map<String, dynamic> _suffix(Map<String, dynamic> map, String suffix) {
+    return new Map<String, dynamic>.fromIterables(
+      map.keys.map<String>((String key) => '$key$suffix'),
+      map.values,
+    );
+  }
+
+  static Future<Map<String, dynamic>> _compileAot({ bool previewDart2: false }) async {
+    // Generate blobs instead of assembly.
+    await flutter('clean');
+    final Stopwatch watch = new Stopwatch()..start();
+    final List<String> options = <String>[
+      'aot',
+      '-v',
+      '--release',
+      '--no-pub',
+      '--target-platform',
+    ];
+    switch (deviceOperatingSystem) {
+      case DeviceOperatingSystem.ios:
+        options.add('ios');
+        break;
+      case DeviceOperatingSystem.android:
+        options.add('android-arm');
+        break;
+    }
+    if (previewDart2)
+      options.add('--preview-dart-2');
+    setLocalEngineOptionIfNecessary(options);
+    final String compileLog = await evalFlutter('build', options: options);
+    watch.stop();
+
+    final RegExp metricExpression = new RegExp(r'([a-zA-Z]+)\(CodeSize\)\: (\d+)');
+    final Map<String, dynamic> metrics = <String, dynamic>{};
+    for (Match m in metricExpression.allMatches(compileLog)) {
+      metrics[_sdkNameToMetricName(m.group(1))] = int.parse(m.group(2));
+    }
+    metrics['aot_snapshot_compile_millis'] = watch.elapsedMilliseconds;
+
+    return metrics;
+  }
+
+  static Future<Map<String, dynamic>> _compileApp({ bool previewDart2: false }) async {
+    await flutter('clean');
+    final Stopwatch watch = new Stopwatch();
+    int releaseSizeInBytes;
+    final List<String> options = <String>['--release'];
+    if (previewDart2)
+      options.add('--preview-dart-2');
+    setLocalEngineOptionIfNecessary(options);
+    switch (deviceOperatingSystem) {
+      case DeviceOperatingSystem.ios:
+        options.insert(0, 'ios');
+        await prepareProvisioningCertificates(cwd);
+        watch.start();
+        await flutter('build', options: options);
+        watch.stop();
+        // IPAs are created manually AFAICT
+        await exec('tar', <String>['-zcf', 'build/app.ipa', 'build/ios/Release-iphoneos/Runner.app/']);
+        releaseSizeInBytes = await file('$cwd/build/app.ipa').length();
+        break;
+      case DeviceOperatingSystem.android:
+        options.insert(0, 'apk');
+        watch.start();
+        await flutter('build', options: options);
+        watch.stop();
+        File apk = file('$cwd/build/app/outputs/apk/app.apk');
+        if (!apk.existsSync()) {
+          // Pre Android SDK 26 path
+          apk = file('$cwd/build/app/outputs/apk/app-release.apk');
+        }
+        releaseSizeInBytes = apk.lengthSync();
+        break;
+    }
+
+    return <String, dynamic>{
+      'release_full_compile_millis': watch.elapsedMilliseconds,
+      'release_size_bytes': releaseSizeInBytes,
+    };
+  }
+
+  static Future<Map<String, dynamic>> _compileDebug({ bool previewDart2: false }) async {
+    await flutter('clean');
+    final Stopwatch watch = new Stopwatch();
+    final List<String> options = <String>['--debug'];
+    if (previewDart2)
+      options.add('--preview-dart-2');
+    setLocalEngineOptionIfNecessary(options);
+    switch (deviceOperatingSystem) {
+      case DeviceOperatingSystem.ios:
+        options.insert(0, 'ios');
+        await prepareProvisioningCertificates(cwd);
+        break;
+      case DeviceOperatingSystem.android:
+        options.insert(0, 'apk');
+        break;
+    }
+    watch.start();
+    await flutter('build', options: options);
+    watch.stop();
+
+    return <String, dynamic>{
+      'debug_full_compile_millis': watch.elapsedMilliseconds,
+    };
   }
 
   static String _sdkNameToMetricName(String sdkName) {
@@ -262,7 +331,7 @@ class BuildTest {
 
 /// Measure application memory usage.
 class MemoryTest {
-  MemoryTest(this.testDirectory, this.packageName, { this.testTarget });
+  const MemoryTest(this.testDirectory, this.packageName, { this.testTarget });
 
   final String testDirectory;
   final String packageName;
@@ -272,18 +341,15 @@ class MemoryTest {
   /// If not specified, then the test will start the app, gather statistics, and then exit.
   final String testTarget;
 
-  Future<TaskResult> call() {
+  Future<TaskResult> run() {
     return inDirectory(testDirectory, () async {
       final Device device = await devices.workingDevice;
       await device.unlock();
       final String deviceId = device.deviceId;
       await flutter('packages', options: <String>['get']);
 
-      if (deviceOperatingSystem == DeviceOperatingSystem.ios) {
+      if (deviceOperatingSystem == DeviceOperatingSystem.ios)
         await prepareProvisioningCertificates(testDirectory);
-        // This causes an Xcode project to be created.
-        await flutter('build', options: <String>['ios', '--profile']);
-      }
 
       final int observatoryPort = await findAvailablePort();
 
@@ -331,12 +397,13 @@ class MemoryTest {
 /// Measure application memory usage after pausing and resuming the app
 /// with the Android back button.
 class AndroidBackButtonMemoryTest {
+  const AndroidBackButtonMemoryTest(this.testDirectory, this.packageName, this.activityName);
+
   final String testDirectory;
   final String packageName;
+  final String activityName;
 
-  AndroidBackButtonMemoryTest(this.testDirectory, this.packageName);
-
-  Future<TaskResult> call() {
+  Future<TaskResult> run() {
     return inDirectory(testDirectory, () async {
       if (deviceOperatingSystem != DeviceOperatingSystem.android) {
         throw 'This test is only supported on Android';
@@ -365,7 +432,7 @@ class AndroidBackButtonMemoryTest {
       for (int i = 0; i < 10; i++) {
         await device.shellExec('input', <String>['keyevent', 'KEYCODE_BACK']);
         await new Future<Null>.delayed(const Duration(milliseconds: 1000));
-        final String output = await device.shellEval('am', <String>['start', '-n', 'io.flutter.examples.gallery/io.flutter.app.FlutterActivity']);
+        final String output = await device.shellEval('am', <String>['start', '-n', '$packageName/$activityName']);
         print(output);
         if (output.contains('Error'))
           return new TaskResult.failure('unable to launch activity');

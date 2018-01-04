@@ -34,12 +34,15 @@ import 'theme.dart';
 ///
 /// Requires one of its ancestors to be a [Material] widget.
 ///
+/// Flat buttons will expand to fit the child widget, if necessary.
+///
 /// See also:
 ///
 ///  * [RaisedButton], which is a button that hovers above the containing
 ///    material.
 ///  * [DropdownButton], which offers the user a choice of a number of options.
 ///  * [SimpleDialogOption], which is used in [SimpleDialog]s.
+///  * [IconButton], to create buttons that just contain icons.
 ///  * [InkWell], which implements the ink splash part of a flat button.
 ///  * <https://material.google.com/components/buttons.html>
 class FlatButton extends StatelessWidget {
@@ -47,7 +50,7 @@ class FlatButton extends StatelessWidget {
   ///
   /// The [child] argument is required and is typically a [Text] widget in all
   /// caps.
-  FlatButton({
+  const FlatButton({
     Key key,
     @required this.onPressed,
     this.textColor,
@@ -59,11 +62,11 @@ class FlatButton extends StatelessWidget {
     this.textTheme,
     this.colorBrightness,
     @required this.child
-  }) : super(key: key) {
-    assert(child != null);
-  }
+  }) : assert(child != null),
+       super(key: key);
 
-  /// The callback that is called when the button is tapped or otherwise activated.
+  /// The callback that is called when the button is tapped or otherwise
+  /// activated.
   ///
   /// If this is set to null, the button will be disabled.
   final VoidCallback onPressed;
@@ -81,7 +84,8 @@ class FlatButton extends StatelessWidget {
   /// The primary color of the button, as printed on the [Material], while it
   /// is in its default (unpressed, enabled) state.
   ///
-  /// Defaults to null, meaning that the color is automatically derived from the [Theme].
+  /// Defaults to null, meaning that the color is automatically derived from the
+  /// [Theme].
   ///
   /// Typically, a material design color will be used, as follows:
   ///
@@ -94,27 +98,34 @@ class FlatButton extends StatelessWidget {
   /// ```
   final Color color;
 
-  /// The primary color of the button when the button is in the down (pressed) state.
-  /// The splash is represented as a circular overlay that appears above the
-  /// [highlightColor] overlay. The splash overlay has a center point that matches
-  /// the hit point of the user touch event. The splash overlay will expand to
-  /// fill the button area if the touch is held for long enough time. If the splash
-  /// color has transparency then the highlight and button color will show through.
+  /// The primary color of the button when the button is in the down (pressed)
+  /// state.
   ///
-  /// Defaults to the splash color from the [Theme].
+  /// The splash is represented as a circular overlay that appears above the
+  /// [highlightColor] overlay. The splash overlay has a center point that
+  /// matches the hit point of the user touch event. The splash overlay will
+  /// expand to fill the button area if the touch is held for long enough time.
+  /// If the splash color has transparency then the highlight and button color
+  /// will show through.
+  ///
+  /// Defaults to the Theme's splash color, [ThemeData.splashColor].
   final Color splashColor;
 
   /// The secondary color of the button when the button is in the down (pressed)
-  /// state. The higlight color is represented as a solid color that is overlaid over the
-  /// button color (if any). If the highlight color has transparency, the button color
-  /// will show through. The highlight fades in quickly as the button is held down.
+  /// state.
   ///
-  /// Defaults to the highlight color from the [Theme].
+  /// The highlight color is represented as a solid color that is overlaid over
+  /// the button color (if any). If the highlight color has transparency, the
+  /// button color will show through. The highlight fades in quickly as the
+  /// button is held down.
+  ///
+  /// Defaults to the Theme's highlight color, [ThemeData.highlightColor].
   final Color highlightColor;
 
-  /// The color of the button when the button is disabled. Buttons are disabled
-  /// by default. To enable a button, set its [onPressed] property to a non-null
-  /// value.
+  /// The color of the button when the button is disabled.
+  ///
+  /// Buttons are disabled by default. To enable a button, set its [onPressed]
+  /// property to a non-null value.
   final Color disabledColor;
 
   /// The color scheme to use for this button's text.
@@ -132,8 +143,10 @@ class FlatButton extends StatelessWidget {
   /// Typically a [Text] widget in all caps.
   final Widget child;
 
-  /// Whether the button is enabled or disabled. Buttons are disabled by default. To
-  /// enable a button, set its [onPressed] property to a non-null value.
+  /// Whether the button is enabled or disabled.
+  ///
+  /// Buttons are disabled by default. To enable a button, set its [onPressed]
+  /// property to a non-null value.
   bool get enabled => onPressed != null;
 
   @override
@@ -149,4 +162,16 @@ class FlatButton extends StatelessWidget {
       child: child
     );
   }
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder description) {
+    super.debugFillProperties(description);
+    description.add(new ObjectFlagProperty<VoidCallback>('onPressed', onPressed, ifNull: 'disabled'));
+    description.add(new DiagnosticsProperty<Color>('textColor', textColor, defaultValue: null));
+    description.add(new DiagnosticsProperty<Color>('disabledTextColor', disabledTextColor, defaultValue: null));
+    description.add(new DiagnosticsProperty<Color>('color', color, defaultValue: null));
+    description.add(new DiagnosticsProperty<Color>('highlightColor', highlightColor, defaultValue: null));
+    description.add(new DiagnosticsProperty<Color>('splashColor', splashColor, defaultValue: null));
+  }
+
 }
