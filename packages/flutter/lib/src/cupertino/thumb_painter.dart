@@ -6,23 +6,62 @@ import 'package:flutter/painting.dart';
 
 import 'colors.dart';
 
-final MaskFilter _kShadowMaskFilter = new MaskFilter.blur(BlurStyle.normal, BoxShadow.convertRadiusToSigma(1.0));
+const Color _kThumbBorderColor = Color(0x0A000000);
 
-/// Paints an iOS-style slider thumb.
+const List<BoxShadow> _kSwitchBoxShadows = <BoxShadow> [
+  BoxShadow(
+    color: Color(0x26000000),
+    offset: Offset(0, 3),
+    blurRadius: 8.0,
+  ),
+  BoxShadow(
+    color: Color(0x0F000000),
+    offset: Offset(0, 3),
+    blurRadius: 1.0,
+  ),
+];
+
+const List<BoxShadow> _kSliderBoxShadows = <BoxShadow> [
+  BoxShadow(
+    color: Color(0x26000000),
+    offset: Offset(0, 3),
+    blurRadius: 8.0,
+  ),
+  BoxShadow(
+    color: Color(0x29000000),
+    offset: Offset(0, 1),
+    blurRadius: 1.0,
+  ),
+  BoxShadow(
+    color: Color(0x1A000000),
+    offset: Offset(0, 3),
+    blurRadius: 1.0,
+  ),
+];
+
+/// Paints an iOS-style slider thumb or switch thumb.
 ///
 /// Used by [CupertinoSwitch] and [CupertinoSlider].
 class CupertinoThumbPainter {
   /// Creates an object that paints an iOS-style slider thumb.
-  CupertinoThumbPainter({
-    this.color: CupertinoColors.white,
-    this.shadowColor: const Color(0x2C000000),
-  });
+  const CupertinoThumbPainter({
+    this.color = CupertinoColors.white,
+    this.shadows = _kSliderBoxShadows,
+  }) : assert(shadows != null);
+
+  /// Creates an object that paints an iOS-style switch thumb.
+  const CupertinoThumbPainter.switchThumb({
+    Color color = CupertinoColors.white,
+    List<BoxShadow> shadows = _kSwitchBoxShadows,
+  }) : this(color: color, shadows: shadows);
 
   /// The color of the interior of the thumb.
   final Color color;
 
-  /// The color of the shadow case by the thumb.
-  final Color shadowColor;
+  /// The list of [BoxShadow] to paint below the thumb.
+  ///
+  /// Must not be null.
+  final List<BoxShadow> shadows;
 
   /// Half the default diameter of the thumb.
   static const double radius = 14.0;
@@ -35,17 +74,18 @@ class CupertinoThumbPainter {
   /// Consider using [radius] and [extension] when deciding how large a
   /// rectangle to use for the thumb.
   void paint(Canvas canvas, Rect rect) {
-    final RRect rrect = new RRect.fromRectAndRadius(rect, new Radius.circular(rect.shortestSide / 2.0));
+    final RRect rrect = RRect.fromRectAndRadius(
+      rect,
+      Radius.circular(rect.shortestSide / 2.0),
+    );
 
-    final Paint paint = new Paint()
-      ..color = shadowColor
-      ..maskFilter = _kShadowMaskFilter;
-    canvas.drawRRect(rrect, paint);
-    canvas.drawRRect(rrect.shift(const Offset(0.0, 3.0)), paint);
+    for (BoxShadow shadow in shadows)
+      canvas.drawRRect(rrect.shift(shadow.offset), shadow.toPaint());
 
-    paint
-      ..color = color
-      ..maskFilter = null;
-    canvas.drawRRect(rrect, paint);
+    canvas.drawRRect(
+      rrect.inflate(0.5),
+      Paint()..color = _kThumbBorderColor,
+    );
+    canvas.drawRRect(rrect, Paint()..color = color);
   }
 }

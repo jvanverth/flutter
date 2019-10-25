@@ -13,18 +13,18 @@
 ///
 ///     enum Vote { yea, nay }
 ///     final index = new EnumIndex(Vote.values);
-///     index.lookupBySimpleName('yea');  // returns Vote.yea
+///     index.lookupBySimpleName('yea'); // returns Vote.yea
 ///     index.toSimpleName(Vote.nay); // returns 'nay'
 class EnumIndex<E> {
   /// Creates an index of [enumValues].
   EnumIndex(List<E> enumValues)
-    : _nameToValue = new Map<String, E>.fromIterable(
+    : _nameToValue = Map<String, E>.fromIterable(
         enumValues,
-        key: _getSimpleName
+        key: _getSimpleName,
       ),
-      _valueToName = new Map<E, String>.fromIterable(
+      _valueToName = Map<E, String>.fromIterable(
         enumValues,
-        value: _getSimpleName
+        value: _getSimpleName,
       );
 
   final Map<String, E> _nameToValue;
