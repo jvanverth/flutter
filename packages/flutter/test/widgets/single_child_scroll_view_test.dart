@@ -1,6 +1,8 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'dart:ui';
 
@@ -8,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import '../rendering/rendering_tester.dart';
 import 'semantics_tester.dart';
 
 class TestScrollPosition extends ScrollPositionWithSingleContext {
@@ -37,6 +40,90 @@ class TestScrollController extends ScrollController {
 }
 
 void main() {
+  testWidgets('SingleChildScrollView overflow and clipRect test', (WidgetTester tester) async {
+    // the test widowSize is Size(800.0, 600.0)
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.vertical,
+          child: Container(height: 600.0,)
+        )
+      )
+    );
+
+    // 1st, check that the render object has received the default clip behavior.
+    final dynamic renderObject = tester.allRenderObjects.where((RenderObject o) => o.runtimeType.toString() == '_RenderSingleChildViewport').first;
+    expect(renderObject.clipBehavior, equals(Clip.hardEdge));
+
+    // 2nd, height == widow.height test: check that the painting context does not call pushClipRect .
+    TestClipPaintingContext context = TestClipPaintingContext();
+    renderObject.paint(context, Offset.zero);
+    expect(context.clipBehavior, equals(Clip.none));
+
+    // 3rd, height overflow test: check that the painting context call pushClipRect.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.vertical,
+          child: Container(height: 600.1,)
+        )
+      )
+    );
+    renderObject.paint(context, Offset.zero);
+    expect(context.clipBehavior, equals(Clip.hardEdge));
+
+    // 4th, width == widow.width test: check that the painting context do not call pushClipRect.
+    context = TestClipPaintingContext();
+    expect(context.clipBehavior, equals(Clip.none)); // initial value
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Container(width: 800.0,)
+        )
+      )
+    );
+    renderObject.paint(context, Offset.zero);
+    expect(context.clipBehavior, equals(Clip.none));
+
+    // 5th, width overflow test: check that the painting context call pushClipRect.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Container(width: 800.1,)
+        )
+      )
+    );
+    renderObject.paint(context, Offset.zero);
+    expect(context.clipBehavior, equals(Clip.hardEdge));
+  });
+
+  testWidgets('SingleChildScrollView respects clipBehavior', (WidgetTester tester) async {
+    await tester.pumpWidget(SingleChildScrollView(child: Container(height: 2000.0)));
+
+    // 1st, check that the render object has received the default clip behavior.
+    final dynamic renderObject = tester.allRenderObjects.where((RenderObject o) => o.runtimeType.toString() == '_RenderSingleChildViewport').first;
+    expect(renderObject.clipBehavior, equals(Clip.hardEdge));
+
+    // 2nd, check that the painting context has received the default clip behavior.
+    final TestClipPaintingContext context = TestClipPaintingContext();
+    renderObject.paint(context, Offset.zero);
+    expect(context.clipBehavior, equals(Clip.hardEdge));
+
+    // 3rd, pump a new widget to check that the render object can update its clip behavior.
+    await tester.pumpWidget(SingleChildScrollView(clipBehavior: Clip.antiAlias, child: Container(height: 2000.0)));
+    expect(renderObject.clipBehavior, equals(Clip.antiAlias));
+
+    // 4th, check that a non-default clip behavior can be sent to the painting context.
+    renderObject.paint(context, Offset.zero);
+    expect(context.clipBehavior, equals(Clip.antiAlias));
+  });
+
   testWidgets('SingleChildScrollView control test', (WidgetTester tester) async {
     await tester.pumpWidget(SingleChildScrollView(
       child: Container(
@@ -72,7 +159,7 @@ void main() {
     ));
 
     final ScrollableState scrollable = tester.state(find.byType(Scrollable));
-    expect(scrollable.position, isInstanceOf<TestScrollPosition>());
+    expect(scrollable.position, isA<TestScrollPosition>());
   });
 
   testWidgets('Sets PrimaryScrollController when primary', (WidgetTester tester) async {
@@ -378,7 +465,7 @@ void main() {
       ),
     );
 
-    final RenderAbstractViewport viewport = tester.allRenderObjects.firstWhere((RenderObject r) => r is RenderAbstractViewport);
+    final RenderAbstractViewport viewport = tester.allRenderObjects.whereType<RenderAbstractViewport>().first;
 
     final RenderObject target = tester.renderObject(find.byWidget(children[5]));
     RevealedOffset revealed = viewport.getOffsetToReveal(target, 0.0);
@@ -425,7 +512,7 @@ void main() {
       ),
     );
 
-    final RenderAbstractViewport viewport = tester.allRenderObjects.firstWhere((RenderObject r) => r is RenderAbstractViewport);
+    final RenderAbstractViewport viewport = tester.allRenderObjects.whereType<RenderAbstractViewport>().first;
 
     final RenderObject target = tester.renderObject(find.byWidget(children[5]));
     RevealedOffset revealed = viewport.getOffsetToReveal(target, 0.0);
@@ -473,7 +560,7 @@ void main() {
       ),
     );
 
-    final RenderAbstractViewport viewport = tester.allRenderObjects.firstWhere((RenderObject r) => r is RenderAbstractViewport);
+    final RenderAbstractViewport viewport = tester.allRenderObjects.whereType<RenderAbstractViewport>().first;
 
     final RenderObject target = tester.renderObject(find.byWidget(children[5]));
     RevealedOffset revealed = viewport.getOffsetToReveal(target, 0.0);
@@ -522,7 +609,7 @@ void main() {
       ),
     );
 
-    final RenderAbstractViewport viewport = tester.allRenderObjects.firstWhere((RenderObject r) => r is RenderAbstractViewport);
+    final RenderAbstractViewport viewport = tester.allRenderObjects.whereType<RenderAbstractViewport>().first;
 
     final RenderObject target = tester.renderObject(find.byWidget(children[5]));
     RevealedOffset revealed = viewport.getOffsetToReveal(target, 0.0);
@@ -581,7 +668,8 @@ void main() {
                   children: List<Widget>.generate(10, (int y) {
                     return Row(
                       children: children[y] = List<Widget>.generate(10, (int x) {
-                        return Container(
+                        return SizedBox(
+                          key: UniqueKey(),
                           height: 100.0,
                           width: 100.0,
                         );

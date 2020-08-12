@@ -1,6 +1,8 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'dart:math' as math;
 
@@ -49,6 +51,8 @@ class BouncingScrollSimulation extends Simulation {
       _springSimulation = _overscrollSimulation(position, velocity);
       _springTime = double.negativeInfinity;
     } else {
+      // Taken from UIScrollView.decelerationRate (.normal = 0.998)
+      // 0.998^1000 = ~0.135
       _frictionSimulation = FrictionSimulation(0.135, position, velocity);
       final double finalX = _frictionSimulation.finalX;
       if (velocity > 0.0 && finalX > trailingExtent) {
@@ -123,7 +127,7 @@ class BouncingScrollSimulation extends Simulation {
 
   @override
   String toString() {
-    return '$runtimeType(leadingExtent: $leadingExtent, trailingExtent: $trailingExtent)';
+    return '${objectRuntimeType(this, 'BouncingScrollSimulation')}(leadingExtent: $leadingExtent, trailingExtent: $trailingExtent)';
   }
 }
 
@@ -212,13 +216,13 @@ class ClampingScrollSimulation extends Simulation {
 
   @override
   double x(double time) {
-    final double t = (time / _duration).clamp(0.0, 1.0);
+    final double t = (time / _duration).clamp(0.0, 1.0) as double;
     return position + _distance * _flingDistancePenetration(t) * velocity.sign;
   }
 
   @override
   double dx(double time) {
-    final double t = (time / _duration).clamp(0.0, 1.0);
+    final double t = (time / _duration).clamp(0.0, 1.0) as double;
     return _distance * _flingVelocityPenetration(t) * velocity.sign / _duration;
   }
 

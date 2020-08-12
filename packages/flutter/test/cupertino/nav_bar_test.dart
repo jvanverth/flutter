@@ -1,6 +1,8 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/rendering.dart';
@@ -136,6 +138,74 @@ void main() {
     expect(tester.getCenter(find.text('Title')).dx, 400.0);
   });
 
+  testWidgets('Can specify custom brightness', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const CupertinoApp(
+        home: CupertinoNavigationBar(
+          backgroundColor: Color(0xF0F9F9F9),
+          brightness: Brightness.dark,
+        ),
+      ),
+    );
+
+    final AnnotatedRegion<SystemUiOverlayStyle> region1 = tester.allWidgets
+        .whereType<AnnotatedRegion<SystemUiOverlayStyle>>()
+        .single;
+    expect(region1.value, SystemUiOverlayStyle.light);
+
+    await tester.pumpWidget(
+      const CupertinoApp(
+        home: CupertinoNavigationBar(
+          backgroundColor: Color(0xF01D1D1D),
+          brightness: Brightness.light,
+        ),
+      ),
+    );
+
+    final AnnotatedRegion<SystemUiOverlayStyle> region2 = tester.allWidgets
+        .whereType<AnnotatedRegion<SystemUiOverlayStyle>>()
+        .single;
+    expect(region2.value, SystemUiOverlayStyle.dark);
+
+    await tester.pumpWidget(
+      const CupertinoApp(
+        home: CustomScrollView(
+          slivers: <Widget>[
+            CupertinoSliverNavigationBar(
+              largeTitle: Text('Title'),
+              backgroundColor: Color(0xF0F9F9F9),
+              brightness: Brightness.dark,
+            )
+          ],
+        ),
+      ),
+    );
+
+    final AnnotatedRegion<SystemUiOverlayStyle> region3 = tester.allWidgets
+        .whereType<AnnotatedRegion<SystemUiOverlayStyle>>()
+        .single;
+    expect(region3.value, SystemUiOverlayStyle.light);
+
+    await tester.pumpWidget(
+      const CupertinoApp(
+        home: CustomScrollView(
+          slivers: <Widget>[
+            CupertinoSliverNavigationBar(
+              largeTitle: Text('Title'),
+              backgroundColor: Color(0xF01D1D1D),
+              brightness: Brightness.light,
+            )
+          ],
+        ),
+      ),
+    );
+
+    final AnnotatedRegion<SystemUiOverlayStyle> region4 = tester.allWidgets
+        .whereType<AnnotatedRegion<SystemUiOverlayStyle>>()
+        .single;
+    expect(region4.value, SystemUiOverlayStyle.dark);
+  });
+
   testWidgets('Padding works in RTL', (WidgetTester tester) async {
     await tester.pumpWidget(
       const CupertinoApp(
@@ -173,12 +243,12 @@ void main() {
         home: CupertinoNavigationBar(
           leading: CupertinoButton(
             onPressed: () { },
-            child: const _ExpectStyles(color: CupertinoColors.activeBlue, index: 0x000001),
+            child: _ExpectStyles(color: CupertinoColors.systemBlue.color, index: 0x000001),
           ),
           middle: const _ExpectStyles(color: CupertinoColors.black, index: 0x000100),
           trailing: CupertinoButton(
             onPressed: () { },
-            child: const _ExpectStyles(color: CupertinoColors.activeBlue, index: 0x010000),
+            child: _ExpectStyles(color: CupertinoColors.systemBlue.color, index: 0x010000),
           ),
         ),
       ),
@@ -188,19 +258,18 @@ void main() {
 
   testWidgets('Nav bar respects themes', (WidgetTester tester) async {
     count = 0x000000;
-    const CupertinoDynamicColor orange = CupertinoColors.activeOrange;
     await tester.pumpWidget(
       CupertinoApp(
         theme: const CupertinoThemeData(brightness: Brightness.dark),
         home: CupertinoNavigationBar(
           leading: CupertinoButton(
             onPressed: () { },
-            child: _ExpectStyles(color: orange.darkColor, index: 0x000001),
+            child: _ExpectStyles(color: CupertinoColors.systemBlue.darkColor, index: 0x000001),
           ),
           middle: const _ExpectStyles(color: CupertinoColors.white, index: 0x000100),
           trailing: CupertinoButton(
             onPressed: () { },
-            child: _ExpectStyles(color: orange.darkColor, index: 0x010000),
+            child: _ExpectStyles(color: CupertinoColors.systemBlue.darkColor, index: 0x010000),
           ),
         ),
       ),
@@ -208,7 +277,7 @@ void main() {
     expect(count, 0x010101);
   });
 
-  testWidgets('Theme active color can be overriden', (WidgetTester tester) async {
+  testWidgets('Theme active color can be overridden', (WidgetTester tester) async {
     count = 0x000000;
     await tester.pumpWidget(
       CupertinoApp(
@@ -323,13 +392,13 @@ void main() {
     List<Element> titles = tester.elementList(find.text('Title'))
         .toList()
         ..sort((Element a, Element b) {
-          final RenderParagraph aParagraph = a.renderObject;
-          final RenderParagraph bParagraph = b.renderObject;
+          final RenderParagraph aParagraph = a.renderObject as RenderParagraph;
+          final RenderParagraph bParagraph = b.renderObject as RenderParagraph;
           return aParagraph.text.style.fontSize.compareTo(bParagraph.text.style.fontSize);
         });
 
     Iterable<double> opacities = titles.map<double>((Element element) {
-      final RenderAnimatedOpacity renderOpacity = element.ancestorRenderObjectOfType(const TypeMatcher<RenderAnimatedOpacity>());
+      final RenderAnimatedOpacity renderOpacity = element.findAncestorRenderObjectOfType<RenderAnimatedOpacity>();
       return renderOpacity.opacity.value;
     });
 
@@ -348,13 +417,13 @@ void main() {
     titles = tester.elementList(find.text('Title'))
         .toList()
         ..sort((Element a, Element b) {
-          final RenderParagraph aParagraph = a.renderObject;
-          final RenderParagraph bParagraph = b.renderObject;
+          final RenderParagraph aParagraph = a.renderObject as RenderParagraph;
+          final RenderParagraph bParagraph = b.renderObject as RenderParagraph;
           return aParagraph.text.style.fontSize.compareTo(bParagraph.text.style.fontSize);
         });
 
     opacities = titles.map<double>((Element element) {
-      final RenderAnimatedOpacity renderOpacity = element.ancestorRenderObjectOfType(const TypeMatcher<RenderAnimatedOpacity>());
+      final RenderAnimatedOpacity renderOpacity = element.findAncestorRenderObjectOfType<RenderAnimatedOpacity>();
       return renderOpacity.opacity.value;
     });
 
@@ -462,7 +531,7 @@ void main() {
     expect(find.text('Different title'), findsOneWidget);
 
     RenderAnimatedOpacity largeTitleOpacity =
-        tester.element(find.text('Title')).ancestorRenderObjectOfType(const TypeMatcher<RenderAnimatedOpacity>());
+        tester.element(find.text('Title')).findAncestorRenderObjectOfType<RenderAnimatedOpacity>();
     // Large title initially visible.
     expect(
       largeTitleOpacity.opacity.value,
@@ -470,7 +539,7 @@ void main() {
     );
     // Middle widget not even wrapped with RenderOpacity, i.e. is always visible.
     expect(
-      tester.element(find.text('Different title')).ancestorRenderObjectOfType(const TypeMatcher<RenderOpacity>()),
+      tester.element(find.text('Different title')).findAncestorRenderObjectOfType<RenderOpacity>(),
       isNull,
     );
 
@@ -481,7 +550,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     largeTitleOpacity =
-        tester.element(find.text('Title')).ancestorRenderObjectOfType(const TypeMatcher<RenderAnimatedOpacity>());
+        tester.element(find.text('Title')).findAncestorRenderObjectOfType<RenderAnimatedOpacity>();
     // Large title no longer visible.
     expect(
       largeTitleOpacity.opacity.value,
@@ -605,10 +674,10 @@ void main() {
     final DecoratedBox decoratedBox = tester.widgetList(find.descendant(
       of: find.byType(CupertinoNavigationBar),
       matching: find.byType(DecoratedBox),
-    )).first;
+    )).first as DecoratedBox;
     expect(decoratedBox.decoration.runtimeType, BoxDecoration);
 
-    final BoxDecoration decoration = decoratedBox.decoration;
+    final BoxDecoration decoration = decoratedBox.decoration as BoxDecoration;
     expect(decoration.border, isNotNull);
 
     final BorderSide side = decoration.border.bottom;
@@ -633,10 +702,10 @@ void main() {
     final DecoratedBox decoratedBox = tester.widgetList(find.descendant(
       of: find.byType(CupertinoNavigationBar),
       matching: find.byType(DecoratedBox),
-    )).first;
+    )).first as DecoratedBox;
     expect(decoratedBox.decoration.runtimeType, BoxDecoration);
 
-    final BoxDecoration decoration = decoratedBox.decoration;
+    final BoxDecoration decoration = decoratedBox.decoration as BoxDecoration;
     expect(decoration.border, isNotNull);
 
     final BorderSide side = decoration.border.bottom;
@@ -657,10 +726,10 @@ void main() {
     final DecoratedBox decoratedBox = tester.widgetList(find.descendant(
       of: find.byType(CupertinoNavigationBar),
       matching: find.byType(DecoratedBox),
-    )).first;
+    )).first as DecoratedBox;
     expect(decoratedBox.decoration.runtimeType, BoxDecoration);
 
-    final BoxDecoration decoration = decoratedBox.decoration;
+    final BoxDecoration decoration = decoratedBox.decoration as BoxDecoration;
     expect(decoration.border, isNull);
   });
 
@@ -682,10 +751,10 @@ void main() {
     final DecoratedBox decoratedBox = tester.widgetList(find.descendant(
       of: find.byType(CupertinoSliverNavigationBar),
       matching: find.byType(DecoratedBox),
-    )).first;
+    )).first as DecoratedBox;
     expect(decoratedBox.decoration.runtimeType, BoxDecoration);
 
-    final BoxDecoration decoration = decoratedBox.decoration;
+    final BoxDecoration decoration = decoratedBox.decoration as BoxDecoration;
     expect(decoration.border, isNotNull);
 
     final BorderSide bottom = decoration.border.bottom;
@@ -711,10 +780,10 @@ void main() {
     final DecoratedBox decoratedBox = tester.widgetList(find.descendant(
       of: find.byType(CupertinoSliverNavigationBar),
       matching: find.byType(DecoratedBox),
-    )).first;
+    )).first as DecoratedBox;
     expect(decoratedBox.decoration.runtimeType, BoxDecoration);
 
-    final BoxDecoration decoration = decoratedBox.decoration;
+    final BoxDecoration decoration = decoratedBox.decoration as BoxDecoration;
     expect(decoration.border, isNull);
   });
 
@@ -788,10 +857,10 @@ void main() {
     final DecoratedBox decoratedBox = tester.widgetList(find.descendant(
       of: find.byType(CupertinoSliverNavigationBar),
       matching: find.byType(DecoratedBox),
-    )).first;
+    )).first as DecoratedBox;
     expect(decoratedBox.decoration.runtimeType, BoxDecoration);
 
-    final BoxDecoration decoration = decoratedBox.decoration;
+    final BoxDecoration decoration = decoratedBox.decoration as BoxDecoration;
     expect(decoration.border, isNotNull);
 
     final BorderSide top = decoration.border.top;
@@ -820,10 +889,7 @@ void main() {
 
       await expectLater(
         find.byType(RepaintBoundary).last,
-        matchesGoldenFile(
-          'nav_bar_test.standard_title.png',
-          version: 2,
-        ),
+        matchesGoldenFile('nav_bar_test.standard_title.png'),
       );
     },
   );
@@ -854,10 +920,7 @@ void main() {
 
       await expectLater(
         find.byType(RepaintBoundary).last,
-        matchesGoldenFile(
-          'nav_bar_test.large_title.png',
-          version: 2,
-        ),
+        matchesGoldenFile('nav_bar_test.large_title.png'),
       );
     },
   );
@@ -1135,7 +1198,7 @@ class _ExpectStyles extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TextStyle style = DefaultTextStyle.of(context).style;
-    expect(style.color.value, color.value);
+    expect(style.color, isSameColorAs(color));
     expect(style.fontFamily, '.SF Pro Text');
     expect(style.fontSize, 17.0);
     expect(style.letterSpacing, -0.41);

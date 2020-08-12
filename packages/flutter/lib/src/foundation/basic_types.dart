@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,9 @@ export 'dart:ui' show VoidCallback;
 
 /// Signature for callbacks that report that an underlying value has changed.
 ///
-/// See also [ValueSetter].
+/// See also:
+///
+///  * [ValueSetter], for callbacks that report that a value has been set.
 typedef ValueChanged<T> = void Function(T value);
 
 /// Signature for callbacks that report that a value has been set.
@@ -203,7 +205,7 @@ class _LazyListIterator<E> implements Iterator<E> {
   E get current {
     assert(_index >= 0); // called "current" before "moveNext()"
     if (_index < 0 || _index == _owner._results.length)
-      return null;
+      throw StateError('current can not be call after moveNext has returned false');
     return _owner._results[_index];
   }
 
@@ -236,4 +238,3 @@ class Factory<T> {
     return 'Factory(type: $type)';
   }
 }
-

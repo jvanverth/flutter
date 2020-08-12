@@ -1,7 +1,6 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,12 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 void main() {
-  if (Platform.isMacOS) {
-    // TODO(gspencergoog): Update this when TargetPlatform includes macOS. https://github.com/flutter/flutter/issues/31366
-    // See https://github.com/flutter/flutter/wiki/Desktop-shells#target-platform-override
-    debugDefaultTargetPlatformOverride = TargetPlatform.fuchsia;
-  }
-
   runApp(const MaterialApp(
     title: 'Focus Demo',
     home: FocusDemo(),
@@ -64,11 +57,18 @@ class _DemoButtonState extends State<DemoButton> {
 
   @override
   Widget build(BuildContext context) {
-    return FlatButton(
+    return TextButton(
       focusNode: focusNode,
       autofocus: widget.autofocus,
-      focusColor: Colors.red,
-      hoverColor: Colors.blue,
+      style: ButtonStyle(
+        overlayColor: MaterialStateProperty.resolveWith<Color>((Set<MaterialState> states) {
+          if (states.contains(MaterialState.focused))
+            return Colors.red.withOpacity(0.25);
+          if (states.contains(MaterialState.hovered))
+            return Colors.blue.withOpacity(0.25);
+          return null;
+        }),
+      ),
       onPressed: () => _handleOnPressed(),
       child: Text(widget.name),
     );
@@ -137,14 +137,14 @@ class _FocusDemoState extends State<FocusDemo> {
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
-    return DefaultFocusTraversal(
+    return FocusTraversalGroup(
       policy: ReadingOrderTraversalPolicy(),
       child: FocusScope(
         debugLabel: 'Scope',
         onKey: _handleKeyPress,
         autofocus: true,
         child: DefaultTextStyle(
-          style: textTheme.display1,
+          style: textTheme.headline4,
           child: Scaffold(
             appBar: AppBar(
               title: const Text('Focus Demo'),
@@ -185,7 +185,7 @@ class _FocusDemoState extends State<FocusDemo> {
                         DemoButton(name: 'Six'),
                       ],
                     ),
-                    OutlineButton(onPressed: () => print('pressed'), child: const Text('PRESS ME')),
+                    OutlinedButton(onPressed: () => print('pressed'), child: const Text('PRESS ME')),
                     const Padding(
                       padding: EdgeInsets.all(8.0),
                       child: TextField(

@@ -1,6 +1,8 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
@@ -71,21 +73,16 @@ void main() {
     await pump(FloatingActionButtonLocation.endDocked);
     await expectLater(
       find.byKey(key),
-      matchesGoldenFile(
-        'bottom_app_bar.custom_shape.1.png',
-        version: null,
-      ),
+      matchesGoldenFile('bottom_app_bar.custom_shape.1.png'),
     );
     await pump(FloatingActionButtonLocation.centerDocked);
     await tester.pumpAndSettle();
     await expectLater(
       find.byKey(key),
-      matchesGoldenFile(
-        'bottom_app_bar.custom_shape.2.png',
-        version: null,
-      ),
+      matchesGoldenFile('bottom_app_bar.custom_shape.2.png'),
     );
-  }, skip: isBrowser);
+  }, skip: isBrowser); // https://github.com/flutter/flutter/issues/51675,
+  // https://github.com/flutter/flutter/issues/44572
 
   testWidgets('color defaults to Theme.bottomAppBarColor', (WidgetTester tester) async {
     await tester.pumpWidget(
@@ -390,7 +387,7 @@ void main() {
 
 // The bottom app bar clip path computation is only available at paint time.
 // In order to examine the notch path we implement this caching painter which
-// at paint time looks for for a descendant PhysicalShape and caches the
+// at paint time looks for a descendant PhysicalShape and caches the
 // clip path it is using.
 class ClipCachePainter extends CustomPainter {
   ClipCachePainter(this.context);
@@ -410,7 +407,7 @@ class ClipCachePainter extends CustomPainter {
       final RenderObject renderObject = e.findRenderObject();
       if (renderObject.runtimeType == RenderPhysicalShape) {
         assert(result == null);
-        result = renderObject;
+        result = renderObject as RenderPhysicalShape;
       } else {
         result = findPhysicalShapeChild(e);
       }
@@ -425,7 +422,7 @@ class ClipCachePainter extends CustomPainter {
 }
 
 class ShapeListener extends StatefulWidget {
-  const ShapeListener(this.child);
+  const ShapeListener(this.child, { Key key }) : super(key: key);
 
   final Widget child;
 
@@ -472,4 +469,3 @@ class RectangularNotch extends NotchedShape {
       ..close();
   }
 }
-

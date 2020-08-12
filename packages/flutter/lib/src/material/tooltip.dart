@@ -1,6 +1,8 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'dart:async';
 
@@ -108,7 +110,7 @@ class Tooltip extends StatefulWidget {
   /// Whether the tooltip's [message] should be excluded from the semantics
   /// tree.
   ///
-  /// Defaults to false. A tooltip will add a [Semantics.label] that is set to
+  /// Defaults to false. A tooltip will add a [Semantics] label that is set to
   /// [Tooltip.message]. Set this property to true if the app is going to
   /// provide its own custom semantics label.
   final bool excludeFromSemantics;
@@ -130,9 +132,10 @@ class Tooltip extends StatefulWidget {
   ///
   /// If null, the message's [TextStyle] will be determined based on
   /// [ThemeData]. If [ThemeData.brightness] is set to [Brightness.dark],
-  /// [ThemeData.textTheme.body1] will be used with [Colors.white]. Otherwise,
-  /// if [ThemeData.brightness] is set to [Brightness.light],
-  /// [ThemeData.textTheme.body1] will be used with [Colors.black].
+  /// [TextTheme.bodyText2] of [ThemeData.textTheme] will be used with
+  /// [Colors.white]. Otherwise, if [ThemeData.brightness] is set to
+  /// [Brightness.light], [TextTheme.bodyText2] of [ThemeData.textTheme] will be
+  /// used with [Colors.black].
   final TextStyle textStyle;
 
   /// The length of time that a pointer must hover over a tooltip's widget
@@ -263,7 +266,8 @@ class _TooltipState extends State<Tooltip> with SingleTickerProviderStateMixin {
 
   /// Shows the tooltip if it is not already visible.
   ///
-  /// Returns `false` when the tooltip was already visible.
+  /// Returns `false` when the tooltip was already visible or if the context has
+  /// become null.
   bool ensureTooltipVisible() {
     _showTimer?.cancel();
     _showTimer = null;
@@ -280,7 +284,7 @@ class _TooltipState extends State<Tooltip> with SingleTickerProviderStateMixin {
   }
 
   void _createNewEntry() {
-    final RenderBox box = context.findRenderObject();
+    final RenderBox box = context.findRenderObject() as RenderBox;
     final Offset target = box.localToGlobal(box.size.center(Offset.zero));
 
     // We create this widget outside of the overlay entry's builder to prevent
@@ -334,6 +338,7 @@ class _TooltipState extends State<Tooltip> with SingleTickerProviderStateMixin {
     if (_entry != null) {
       _hideTooltip(immediately: true);
     }
+    _showTimer?.cancel();
     super.deactivate();
   }
 
@@ -362,7 +367,7 @@ class _TooltipState extends State<Tooltip> with SingleTickerProviderStateMixin {
     TextStyle defaultTextStyle;
     BoxDecoration defaultDecoration;
     if (theme.brightness == Brightness.dark) {
-      defaultTextStyle = theme.textTheme.body1.copyWith(
+      defaultTextStyle = theme.textTheme.bodyText2.copyWith(
         color: Colors.black,
       );
       defaultDecoration = BoxDecoration(
@@ -370,7 +375,7 @@ class _TooltipState extends State<Tooltip> with SingleTickerProviderStateMixin {
         borderRadius: const BorderRadius.all(Radius.circular(4)),
       );
     } else {
-      defaultTextStyle = theme.textTheme.body1.copyWith(
+      defaultTextStyle = theme.textTheme.bodyText2.copyWith(
         color: Colors.white,
       );
       defaultDecoration = BoxDecoration(
@@ -504,7 +509,7 @@ class _TooltipOverlay extends StatelessWidget {
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: height),
               child: DefaultTextStyle(
-                style: Theme.of(context).textTheme.body1,
+                style: Theme.of(context).textTheme.bodyText2,
                 child: Container(
                   decoration: decoration,
                   padding: padding,

@@ -1,6 +1,8 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 @TestOn('!chrome') // whole file needs triage.
 import 'dart:ui';
@@ -625,20 +627,24 @@ void main() {
         TestSemantics.rootChild(
           children: <TestSemantics>[
             TestSemantics(
-              flags: <SemanticsFlag>[
-                SemanticsFlag.scopesRoute,
-              ],
               children: <TestSemantics>[
                 TestSemantics(
-                  label: 'Add Photo',
-                  actions: <SemanticsAction>[
-                    SemanticsAction.tap,
-                  ],
                   flags: <SemanticsFlag>[
-                    SemanticsFlag.hasEnabledState,
-                    SemanticsFlag.isButton,
-                    SemanticsFlag.isEnabled,
-                    SemanticsFlag.isFocusable,
+                    SemanticsFlag.scopesRoute,
+                  ],
+                  children: <TestSemantics>[
+                    TestSemantics(
+                      label: 'Add Photo',
+                      actions: <SemanticsAction>[
+                        SemanticsAction.tap,
+                      ],
+                      flags: <SemanticsFlag>[
+                        SemanticsFlag.hasEnabledState,
+                        SemanticsFlag.isButton,
+                        SemanticsFlag.isEnabled,
+                        SemanticsFlag.isFocusable,
+                      ],
+                    ),
                   ],
                 ),
               ],
@@ -672,7 +678,7 @@ void main() {
                           onPressed: () { },
                         ),
                         body: Center(
-                          child: RaisedButton(
+                          child: ElevatedButton(
                             child: const Text('POP'),
                             onPressed: () {
                               Navigator.pop(context);
@@ -740,11 +746,86 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1000));
     await expectLater(
       find.byKey(key),
-      matchesGoldenFile(
-        'floating_action_button_test.clip.png',
-        version: 2,
+      matchesGoldenFile('floating_action_button_test.clip.png'),
+    );
+  });
+
+  testWidgets('Floating Action Button changes mouse cursor when hovered', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: FloatingActionButton.extended(
+              onPressed: () { },
+              mouseCursor: SystemMouseCursors.text,
+              label: const Text('label'),
+              icon: const Icon(Icons.android),
+            ),
+          ),
+        ),
       ),
     );
+
+    final TestGesture gesture = await tester.createGesture(kind: PointerDeviceKind.mouse, pointer: 1);
+    await gesture.addPointer(location: tester.getCenter(find.byType(FloatingActionButton)));
+    addTearDown(gesture.removePointer);
+
+    await tester.pump();
+
+    expect(RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1), SystemMouseCursors.text);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: FloatingActionButton(
+              onPressed: () { },
+              mouseCursor: SystemMouseCursors.text,
+              child: const Icon(Icons.add),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await gesture.moveTo(tester.getCenter(find.byType(FloatingActionButton)));
+    expect(RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1), SystemMouseCursors.text);
+
+    // Test default cursor
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: FloatingActionButton(
+              onPressed: () { },
+              child: const Icon(Icons.add),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1), SystemMouseCursors.click);
+
+    // Test default cursor when disabled
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: FloatingActionButton(
+              onPressed: null,
+              child: Icon(Icons.add),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1), SystemMouseCursors.basic);
   });
 
   testWidgets('Floating Action Button has no clip by default', (WidgetTester tester) async {

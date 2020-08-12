@@ -1,6 +1,8 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'dart:typed_data';
 
@@ -11,6 +13,9 @@ import 'basic_types.dart';
 
 /// Utility functions for working with matrices.
 class MatrixUtils {
+  // This class is not meant to be instantiated or extended; this constructor
+  // prevents instantiation and extension.
+  // ignore: unused_element
   MatrixUtils._();
 
   /// Returns the given [transform] matrix as an [Offset], if the matrix is
@@ -122,6 +127,13 @@ class MatrixUtils {
   ///
   /// This function assumes the given point has a z-coordinate of 0.0. The
   /// z-coordinate of the result is ignored.
+  ///
+  /// While not common, this method may return (NaN, NaN), iff the given `point`
+  /// results in a "point at infinity" in homogeneous coordinates after applying
+  /// the `transform`. For example, a [RenderObject] may set its transform to
+  /// the zero matrix to indicate its content is currently not visible. Trying
+  /// to convert an `Offset` to its coordinate space always results in
+  /// (NaN, NaN).
   static Offset transformPoint(Matrix4 transform, Offset point) {
     final Float64List storage = transform.storage;
     final double x = point.dx;
@@ -507,11 +519,11 @@ class MatrixUtils {
 
     // Model matrix by first translating the object from the origin of the world
     // by radius in the z axis and then rotating against the world.
-    result *= (
+    result = result * ((
         orientation == Axis.horizontal
             ? Matrix4.rotationY(angle)
             : Matrix4.rotationX(angle)
-    ) * Matrix4.translationValues(0.0, 0.0, radius);
+    ) * Matrix4.translationValues(0.0, 0.0, radius)) as Matrix4;
 
     // Essentially perspective * view * model.
     return result;

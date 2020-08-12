@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,14 @@ void main() {
     tempDir = createResolvedTempDirectorySync('attach_test.');
     await _project.setUpIn(tempDir);
     _flutterRun = FlutterRunTestDriver(tempDir,    logPrefix: '   RUN  ');
-    _flutterAttach = FlutterRunTestDriver(tempDir, logPrefix: 'ATTACH  ');
+    _flutterAttach = FlutterRunTestDriver(
+      tempDir,
+      logPrefix: 'ATTACH  ',
+      // Only one DDS instance can be connected to the VM service at a time.
+      // DDS can also only initialize if the VM service doesn't have any existing
+      // clients, so we'll just let _flutterRun be responsible for spawning DDS.
+      spawnDdsInstance: false,
+    );
   });
 
   tearDown(() async {
@@ -58,7 +65,11 @@ void main() {
     await _flutterRun.run(withDebugger: true);
     await _flutterAttach.attach(_flutterRun.vmServicePort);
     await _flutterAttach.quit();
-    _flutterAttach = FlutterRunTestDriver(tempDir, logPrefix: 'ATTACH-2');
+    _flutterAttach = FlutterRunTestDriver(
+      tempDir,
+      logPrefix: 'ATTACH-2',
+      spawnDdsInstance: false,
+    );
     await _flutterAttach.attach(_flutterRun.vmServicePort);
     await _flutterAttach.hotReload();
   });

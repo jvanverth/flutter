@@ -1,4 +1,4 @@
-// Copyright 2018 The Flutter Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -57,10 +57,8 @@ void main() {
   test('Xcode backend fails for on unsupported configuration combinations', () async {
     await expectXcodeBackendFails(unknownConfiguration);
     await expectXcodeBackendFails(unknownFlutterBuildMode);
-
     await expectXcodeBackendFails(installWithoutRelease);
-
     await expectXcodeBackendFails(localEngineDebugBuildModeRelease);
     await expectXcodeBackendFails(localEngineProfileBuildeModeRelease);
-  }, skip: true); // #35707 non-hermetic test requires precache to have run.
+  }, skip: true); // https://github.com/flutter/flutter/issues/35707 (non-hermetic test requires precache to have run)
 }

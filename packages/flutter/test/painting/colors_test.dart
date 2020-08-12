@@ -1,10 +1,13 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 
 const double _doubleColorPrecision = 0.01;
 
@@ -428,7 +431,7 @@ void main() {
 
   test('ColorDiagnosticsProperty includes valueProperties in JSON', () {
     ColorProperty property = ColorProperty('foo', const Color.fromARGB(10, 20, 30, 40));
-    final Map<String, Object> valueProperties = property.toJsonMap(const DiagnosticsSerializationDelegate())['valueProperties'];
+    final Map<String, Object> valueProperties = property.toJsonMap(const DiagnosticsSerializationDelegate())['valueProperties'] as Map<String, Object>;
     expect(valueProperties['alpha'], 10);
     expect(valueProperties['red'], 20);
     expect(valueProperties['green'], 30);
@@ -437,5 +440,23 @@ void main() {
     property = ColorProperty('foo', null);
     final Map<String, Object> json = property.toJsonMap(const DiagnosticsSerializationDelegate());
     expect(json.containsKey('valueProperties'), isFalse);
+  });
+
+  test('MaterialColor swatch comparison', () {
+    const Map<int, MaterialColor> sampleMap = <int, MaterialColor>{
+      0: Colors.lightBlue,
+      1: Colors.deepOrange,
+      2: Colors.blueGrey,
+    };
+    const MaterialColor first = MaterialColor(0, sampleMap);
+    const MaterialColor second = MaterialColor(0, sampleMap);
+    const MaterialColor third = MaterialColor(
+        0, <int, MaterialColor>{
+          0: Colors.lightBlue,
+          1: Colors.deepOrange,
+          2: Colors.blueGrey,
+        });
+    expect(first == second, true);
+    expect(first == third, true);
   });
 }

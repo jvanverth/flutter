@@ -1,6 +1,7 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
 
 import 'dart:async';
 import 'dart:convert';
@@ -65,8 +66,11 @@ abstract class AssetBundle {
   /// implementation.)
   Future<String> loadString(String key, { bool cache = true }) async {
     final ByteData data = await load(key);
+    // Note: data has a non-nullable type, but might be null when running with
+    // weak checking, so we need to null check it anyway (and ignore the warning
+    // that the null-handling logic is dead code).
     if (data == null)
-      throw FlutterError('Unable to load asset: $key');
+      throw FlutterError('Unable to load asset: $key'); // ignore: dead_code
     if (data.lengthInBytes < 10 * 1024) {
       // 10KB takes about 3ms to parse on a Pixel 2 XL.
       // See: https://github.com/dart-lang/sdk/issues/31954
@@ -116,10 +120,10 @@ class NetworkAssetBundle extends AssetBundle {
     final HttpClientRequest request = await _httpClient.getUrl(_urlFromKey(key));
     final HttpClientResponse response = await request.close();
     if (response.statusCode != HttpStatus.ok)
-      throw FlutterError(
-        'Unable to load asset: $key\n'
-        'HTTP status code: ${response.statusCode}'
-      );
+      throw FlutterError.fromParts(<DiagnosticsNode>[
+        ErrorSummary('Unable to load asset: $key'),
+        IntProperty('HTTP status code', response.statusCode),
+      ]);
     final Uint8List bytes = await consolidateHttpClientResponseBytes(response);
     return bytes.buffer.asByteData();
   }
@@ -178,12 +182,12 @@ abstract class CachingAssetBundle extends AssetBundle {
     assert(key != null);
     assert(parser != null);
     if (_structuredDataCache.containsKey(key))
-      return _structuredDataCache[key];
-    Completer<T> completer;
-    Future<T> result;
+      return _structuredDataCache[key] as Future<T>;
+    Completer<T>? completer;
+    Future<T>? result;
     loadString(key, cache: false).then<T>(parser).then<void>((T value) {
       result = SynchronousFuture<T>(value);
-      _structuredDataCache[key] = result;
+      _structuredDataCache[key] = result!;
       if (completer != null) {
         // We already returned from the loadStructuredData function, which means
         // we are in the asynchronous mode. Pass the value to the completer. The
@@ -194,7 +198,7 @@ abstract class CachingAssetBundle extends AssetBundle {
     if (result != null) {
       // The code above ran synchronously, and came up with an answer.
       // Return the SynchronousFuture that we created above.
-      return result;
+      return result!;
     }
     // The code above hasn't yet run its "then" handler yet. Let's prepare a
     // completer for it to use when it does run.
@@ -215,8 +219,8 @@ class PlatformAssetBundle extends CachingAssetBundle {
   @override
   Future<ByteData> load(String key) async {
     final Uint8List encoded = utf8.encoder.convert(Uri(path: Uri.encodeFull(key)).path);
-    final ByteData asset =
-        await defaultBinaryMessenger.send('flutter/assets', encoded.buffer.asByteData()); // ignore: deprecated_member_use_from_same_package
+    final ByteData? asset =
+        await defaultBinaryMessenger.send('flutter/assets', encoded.buffer.asByteData());
     if (asset == null)
       throw FlutterError('Unable to load asset: $key');
     return asset;

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@ import 'dart:typed_data';
 
 import 'package:mockito/mockito.dart';
 import 'package:path/path.dart' as path;
+import 'package:process_runner/process_runner.dart';
 import 'package:platform/platform.dart' show FakePlatform;
 
 import '../prepare_package.dart';
@@ -20,22 +21,22 @@ void main() {
   test('Throws on missing executable', () async {
     // Uses a *real* process manager, since we want to know what happens if
     // it can't find an executable.
-    final ProcessRunner processRunner = ProcessRunner(subprocessOutput: false);
+    final ProcessRunner processRunner = ProcessRunner(printOutputDefault: false);
     expect(
         expectAsync1((List<String> commandLine) async {
           return processRunner.runProcess(commandLine);
         })(<String>['this_executable_better_not_exist_2857632534321']),
-        throwsA(isInstanceOf<PreparePackageException>()));
+        throwsA(isA<ProcessRunnerException>()));
     try {
       await processRunner.runProcess(<String>['this_executable_better_not_exist_2857632534321']);
-    } on PreparePackageException catch (e) {
+    } on ProcessRunnerException catch (e) {
       expect(
         e.message,
         contains('Invalid argument(s): Cannot find executable for this_executable_better_not_exist_2857632534321.'),
       );
     }
   });
-  for (String platformName in <String>['macos', 'linux', 'windows']) {
+  for (final String platformName in <String>['macos', 'linux', 'windows']) {
     final FakePlatform platform = FakePlatform(
       operatingSystem: platformName,
       environment: <String, String>{
@@ -49,8 +50,8 @@ void main() {
           'echo test': <ProcessResult>[ProcessResult(0, 0, 'output', 'error')],
         };
         final ProcessRunner processRunner = ProcessRunner(
-            subprocessOutput: false, platform: platform, processManager: fakeProcessManager);
-        final String output = await processRunner.runProcess(<String>['echo', 'test']);
+            printOutputDefault: false, processManager: fakeProcessManager);
+        final String output = (await processRunner.runProcess(<String>['echo', 'test'])).stdout;
         expect(output, equals('output'));
       });
       test('Throws on process failure', () async {
@@ -59,12 +60,12 @@ void main() {
           'echo test': <ProcessResult>[ProcessResult(0, -1, 'output', 'error')],
         };
         final ProcessRunner processRunner = ProcessRunner(
-            subprocessOutput: false, platform: platform, processManager: fakeProcessManager);
+            printOutputDefault: false, processManager: fakeProcessManager);
         expect(
             expectAsync1((List<String> commandLine) async {
               return processRunner.runProcess(commandLine);
             })(<String>['echo', 'test']),
-            throwsA(isInstanceOf<PreparePackageException>()));
+            throwsA(isA<ProcessRunnerException>()));
       });
     });
     group('ArchiveCreator for $platformName', () {
@@ -122,6 +123,7 @@ void main() {
           '$flutter create --template=package ${createBase}package': null,
           '$flutter create --template=plugin ${createBase}plugin': null,
           'git clean -f -X **/.packages': null,
+          'git clean -f -X **/.dart_tool': null,
           if (platform.isWindows) 'attrib -h .git': null,
           if (platform.isWindows) '7za a -tzip -mx=9 $archiveName flutter': null
           else if (platform.isMacOS) 'zip -r -9 $archiveName flutter': null
@@ -157,6 +159,7 @@ void main() {
           '$flutter create --template=package ${createBase}package': null,
           '$flutter create --template=plugin ${createBase}plugin': null,
           'git clean -f -X **/.packages': null,
+          'git clean -f -X **/.dart_tool': null,
           if (platform.isWindows) 'attrib -h .git': null,
           if (platform.isWindows) '7za a -tzip -mx=9 $archiveName flutter': null
           else if (platform.isMacOS) 'zip -r -9 $archiveName flutter': null
@@ -185,8 +188,7 @@ void main() {
           'git reset --hard $testRef': <ProcessResult>[ProcessResult(0, -1, 'output2', '')],
         };
         processManager.fakeResults = calls;
-        expect(expectAsync0(creator.initializeRepo),
-            throwsA(isInstanceOf<PreparePackageException>()));
+        expect(expectAsync0(creator.initializeRepo), throwsA(isA<ProcessRunnerException>()));
       });
 
       test('non-strict mode calls the right commands', () async {
@@ -207,6 +209,7 @@ void main() {
           '$flutter create --template=package ${createBase}package': null,
           '$flutter create --template=plugin ${createBase}plugin': null,
           'git clean -f -X **/.packages': null,
+          'git clean -f -X **/.dart_tool': null,
           if (platform.isWindows) 'attrib -h .git': null,
           if (platform.isWindows) '7za a -tzip -mx=9 $archiveName flutter': null
           else if (platform.isMacOS) 'zip -r -9 $archiveName flutter': null
@@ -251,7 +254,8 @@ void main() {
         final String gsArchivePath = 'gs://flutter_infra/releases/stable/$platformName/$archiveName';
         final String jsonPath = path.join(tempDir.absolute.path, releasesName);
         final String gsJsonPath = 'gs://flutter_infra/releases/$releasesName';
-        final String releasesJson = '''{
+        final String releasesJson = '''
+{
   "base_url": "https://storage.googleapis.com/flutter_infra/releases",
   "current_release": {
     "beta": "3ea4d06340a97a1e9d7cae97567c64e0569dcaa2",
@@ -328,13 +332,13 @@ void main() {
         expect(contents, contains('"channel": "dev"'));
         // Make sure old matching entries are removed.
         expect(contents, isNot(contains('v0.0.0')));
-        final Map<String, dynamic> jsonData = json.decode(contents);
-        final List<dynamic> releases = jsonData['releases'];
+        final Map<String, dynamic> jsonData = json.decode(contents) as Map<String, dynamic>;
+        final List<dynamic> releases = jsonData['releases'] as List<dynamic>;
         expect(releases.length, equals(3));
         // Make sure the new entry is first (and hopefully it takes less than a
         // minute to go from publishArchive above to this line!).
         expect(
-          DateTime.now().difference(DateTime.parse(releases[0]['release_date'])),
+          DateTime.now().difference(DateTime.parse(releases[0]['release_date'] as String)),
           lessThan(const Duration(minutes: 1)),
         );
         const JsonEncoder encoder = JsonEncoder.withIndent('  ');

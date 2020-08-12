@@ -1,6 +1,8 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
@@ -19,7 +21,7 @@ class TestSliverChildListDelegate extends SliverChildListDelegate {
 }
 
 class Alive extends StatefulWidget {
-  const Alive(this.alive, this.index);
+  const Alive(this.alive, this.index, { Key key }) : super(key: key);
   final bool alive;
   final int index;
 
@@ -27,7 +29,7 @@ class Alive extends StatefulWidget {
   AliveState createState() => AliveState();
 
   @override
-  String toString({ DiagnosticLevel minLevel = DiagnosticLevel.debug }) => '$index $alive';
+  String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) => '$index $alive';
 }
 
 class AliveState extends State<Alive> with AutomaticKeepAliveClientMixin {
@@ -212,7 +214,7 @@ void main() {
 
     await tester.pumpWidget(_StatefulListView((int i) => i % 3 == 0));
     await checkAndScroll('0:true');
-  }, skip: isBrowser);
+  });
 
   testWidgets('ListView can build out of underflow', (WidgetTester tester) async {
     await tester.pumpWidget(
@@ -534,5 +536,43 @@ void main() {
       ],
     ));
     handle.dispose();
+  });
+
+  testWidgets('Updates viewport dimensions when scroll direction changes', (WidgetTester tester) async {
+    // Regression test for https://github.com/flutter/flutter/issues/43380.
+    final ScrollController controller = ScrollController();
+
+    Widget buildListView({@required Axis scrollDirection}) {
+      assert(scrollDirection != null);
+      return Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: Container(
+            height: 200.0,
+            width: 100.0,
+            child: ListView(
+              controller: controller,
+              scrollDirection: scrollDirection,
+              itemExtent: 50.0,
+              children: <Widget>[
+                Container(
+                  height: 50.0,
+                  width: 50.0,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildListView(scrollDirection: Axis.horizontal));
+    expect(controller.position.viewportDimension, 100.0);
+
+    await tester.pumpWidget(buildListView(scrollDirection: Axis.vertical));
+    expect(controller.position.viewportDimension, 200.0);
+
+    await tester.pumpWidget(buildListView(scrollDirection: Axis.horizontal));
+    expect(controller.position.viewportDimension, 100.0);
   });
 }

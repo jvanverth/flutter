@@ -1,6 +1,8 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'dart:async';
 
@@ -36,7 +38,12 @@ class Scrollbar extends StatefulWidget {
   const Scrollbar({
     Key key,
     @required this.child,
-  }) : super(key: key);
+    this.controller,
+    this.isAlwaysShown = false,
+    this.thickness,
+    this.radius,
+  }) : assert(!isAlwaysShown || controller != null, 'When isAlwaysShown is true, must pass a controller that is attached to a scroll view'),
+       super(key: key);
 
   /// The widget below this widget in the tree.
   ///
@@ -46,10 +53,35 @@ class Scrollbar extends StatefulWidget {
   /// Typically a [ListView] or [CustomScrollView].
   final Widget child;
 
+  /// {@macro flutter.cupertino.cupertinoScrollbar.controller}
+  final ScrollController controller;
+
+  /// {@macro flutter.cupertino.cupertinoScrollbar.isAlwaysShown}
+  final bool isAlwaysShown;
+
+  /// The thickness of the scrollbar.
+  ///
+  /// If this is non-null, it will be used as the thickness of the scrollbar on
+  /// all platforms, whether the scrollbar is being dragged by the user or not.
+  /// By default (if this is left null), each platform will get a thickness
+  /// that matches the look and feel of the platform, and the thickness may
+  /// grow while the scrollbar is being dragged if the platform look and feel
+  /// calls for such behavior.
+  final double thickness;
+
+  /// The radius of the corners of the scrollbar.
+  ///
+  /// If this is non-null, it will be used as the fixed radius of the scrollbar
+  /// on all platforms, whether the scrollbar is being dragged by the user or
+  /// not. By default (if this is left null), each platform will get a radius
+  /// that matches the look and feel of the platform, and the radius may
+  /// change while the scrollbar is being dragged if the platform look and feel
+  /// calls for such behavior.
+  final Radius radius;
+
   @override
   _ScrollbarState createState() => _ScrollbarState();
 }
-
 
 class _ScrollbarState extends State<Scrollbar> with TickerProviderStateMixin {
   ScrollbarPainter _materialPainter;
@@ -83,6 +115,7 @@ class _ScrollbarState extends State<Scrollbar> with TickerProviderStateMixin {
     final ThemeData theme = Theme.of(context);
     switch (theme.platform) {
       case TargetPlatform.iOS:
+      case TargetPlatform.macOS:
         // On iOS, stop all local animations. CupertinoScrollbar has its own
         // animations.
         _fadeoutTimer?.cancel();
@@ -92,20 +125,55 @@ class _ScrollbarState extends State<Scrollbar> with TickerProviderStateMixin {
         break;
       case TargetPlatform.android:
       case TargetPlatform.fuchsia:
+      case TargetPlatform.linux:
+      case TargetPlatform.windows:
         _themeColor = theme.highlightColor.withOpacity(1.0);
         _textDirection = Directionality.of(context);
         _materialPainter = _buildMaterialScrollbarPainter();
         _useCupertinoScrollbar = false;
+        _triggerScrollbar();
         break;
     }
     assert(_useCupertinoScrollbar != null);
+  }
+
+  @override
+  void didUpdateWidget(Scrollbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isAlwaysShown != oldWidget.isAlwaysShown) {
+      if (widget.isAlwaysShown == false) {
+        _fadeoutAnimationController.reverse();
+      } else {
+        _triggerScrollbar();
+        _fadeoutAnimationController.animateTo(1.0);
+      }
+    }
+    if (!_useCupertinoScrollbar) {
+      assert(_materialPainter != null);
+      _materialPainter
+        ..thickness = widget.thickness ?? _kScrollbarThickness
+        ..radius = widget.radius;
+    }
+  }
+
+  // Wait one frame and cause an empty scroll event.  This allows the thumb to
+  // show immediately when isAlwaysShown is true.  A scroll event is required in
+  // order to paint the thumb.
+  void _triggerScrollbar() {
+    WidgetsBinding.instance.addPostFrameCallback((Duration duration) {
+      if (widget.isAlwaysShown) {
+        _fadeoutTimer?.cancel();
+        widget.controller.position.didUpdateScrollPositionBy(0);
+      }
+    });
   }
 
   ScrollbarPainter _buildMaterialScrollbarPainter() {
     return ScrollbarPainter(
       color: _themeColor,
       textDirection: _textDirection,
-      thickness: _kScrollbarThickness,
+      thickness: widget.thickness ?? _kScrollbarThickness,
+      radius: widget.radius,
       fadeoutOpacityAnimation: _fadeoutOpacityAnimation,
       padding: MediaQuery.of(context).padding,
     );
@@ -120,17 +188,23 @@ class _ScrollbarState extends State<Scrollbar> with TickerProviderStateMixin {
     // iOS sub-delegates to the CupertinoScrollbar instead and doesn't handle
     // scroll notifications here.
     if (!_useCupertinoScrollbar &&
-        (notification is ScrollUpdateNotification || notification is OverscrollNotification)) {
+        (notification is ScrollUpdateNotification ||
+            notification is OverscrollNotification)) {
       if (_fadeoutAnimationController.status != AnimationStatus.forward) {
         _fadeoutAnimationController.forward();
       }
 
-      _materialPainter.update(notification.metrics, notification.metrics.axisDirection);
-      _fadeoutTimer?.cancel();
-      _fadeoutTimer = Timer(_kScrollbarTimeToFade, () {
-        _fadeoutAnimationController.reverse();
-        _fadeoutTimer = null;
-      });
+      _materialPainter.update(
+        notification.metrics,
+        notification.metrics.axisDirection,
+      );
+      if (!widget.isAlwaysShown) {
+        _fadeoutTimer?.cancel();
+        _fadeoutTimer = Timer(_kScrollbarTimeToFade, () {
+          _fadeoutAnimationController.reverse();
+          _fadeoutTimer = null;
+        });
+      }
     }
     return false;
   }
@@ -148,6 +222,12 @@ class _ScrollbarState extends State<Scrollbar> with TickerProviderStateMixin {
     if (_useCupertinoScrollbar) {
       return CupertinoScrollbar(
         child: widget.child,
+        isAlwaysShown: widget.isAlwaysShown,
+        thickness: widget.thickness ?? CupertinoScrollbar.defaultThickness,
+        thicknessWhileDragging: widget.thickness ?? CupertinoScrollbar.defaultThicknessWhileDragging,
+        radius: widget.radius ?? CupertinoScrollbar.defaultRadius,
+        radiusWhileDragging: widget.radius ?? CupertinoScrollbar.defaultRadiusWhileDragging,
+        controller: widget.controller,
       );
     }
     return NotificationListener<ScrollNotification>(

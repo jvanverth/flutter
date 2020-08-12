@@ -1,6 +1,8 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show Brightness;
@@ -16,7 +18,7 @@ import 'theme_data.dart';
 /// The [Theme] has a color scheme, [ThemeData.colorScheme], which is constructed
 /// with [ColorScheme.fromSwatch].
 @immutable
-class ColorScheme extends Diagnosticable {
+class ColorScheme with Diagnosticable {
   /// Create a ColorScheme instance.
   const ColorScheme({
     @required this.primary,
@@ -105,6 +107,67 @@ class ColorScheme extends Diagnosticable {
        assert(onBackground != null),
        assert(onError != null),
        assert(brightness != null);
+
+
+  /// Create a high contrast ColorScheme based on a purple primary color that
+  /// matches the [baseline Material color scheme](https://material.io/design/color/the-color-system.html#color-theme-creation).
+  const ColorScheme.highContrastLight({
+    this.primary = const Color(0xff0000ba),
+    this.primaryVariant = const Color(0xff000088),
+    this.secondary = const Color(0xff66fff9),
+    this.secondaryVariant = const Color(0xff018786),
+    this.surface = Colors.white,
+    this.background = Colors.white,
+    this.error = const Color(0xff790000),
+    this.onPrimary = Colors.white,
+    this.onSecondary = Colors.black,
+    this.onSurface = Colors.black,
+    this.onBackground = Colors.black,
+    this.onError = Colors.white,
+    this.brightness = Brightness.light,
+  }) : assert(primary != null),
+        assert(primaryVariant != null),
+        assert(secondary != null),
+        assert(secondaryVariant != null),
+        assert(surface != null),
+        assert(background != null),
+        assert(error != null),
+        assert(onPrimary != null),
+        assert(onSecondary != null),
+        assert(onSurface != null),
+        assert(onBackground != null),
+        assert(onError != null),
+        assert(brightness != null);
+
+  /// Create a high contrast ColorScheme based on the dark
+  /// [baseline Material color scheme](https://material.io/design/color/dark-theme.html#ui-application).
+  const ColorScheme.highContrastDark({
+    this.primary = const Color(0xffefb7ff),
+    this.primaryVariant = const Color(0xffbe9eff),
+    this.secondary = const Color(0xff66fff9),
+    this.secondaryVariant = const Color(0xff66fff9),
+    this.surface = const Color(0xff121212),
+    this.background = const Color(0xff121212),
+    this.error = const Color(0xff9b374d),
+    this.onPrimary = Colors.black,
+    this.onSecondary = Colors.black,
+    this.onSurface = Colors.white,
+    this.onBackground = Colors.white,
+    this.onError = Colors.black,
+    this.brightness = Brightness.dark,
+  }) : assert(primary != null),
+        assert(primaryVariant != null),
+        assert(secondary != null),
+        assert(secondaryVariant != null),
+        assert(surface != null),
+        assert(background != null),
+        assert(error != null),
+        assert(onPrimary != null),
+        assert(onSecondary != null),
+        assert(onSurface != null),
+        assert(onBackground != null),
+        assert(onError != null),
+        assert(brightness != null);
 
   /// Create a color scheme from a [MaterialColor] swatch.
   ///
@@ -243,7 +306,7 @@ class ColorScheme extends Diagnosticable {
 
   /// Linearly interpolate between two [ColorScheme] objects.
   ///
-  /// {@macro flutter.material.themeData.lerp}
+  /// {@macro dart.ui.shadow.lerp}
   static ColorScheme lerp(ColorScheme a, ColorScheme b, double t) {
     return ColorScheme(
       primary: Color.lerp(a.primary, b.primary, t),
@@ -268,20 +331,20 @@ class ColorScheme extends Diagnosticable {
       return true;
     if (other.runtimeType != runtimeType)
       return false;
-    final ColorScheme otherScheme = other;
-    return otherScheme.primary == primary
-        && otherScheme.primaryVariant == primaryVariant
-        && otherScheme.secondary == secondary
-        && otherScheme.secondaryVariant == secondaryVariant
-        && otherScheme.surface == surface
-        && otherScheme.background == background
-        && otherScheme.error == error
-        && otherScheme.onPrimary == onPrimary
-        && otherScheme.onSecondary == onSecondary
-        && otherScheme.onSurface == onSurface
-        && otherScheme.onBackground == onBackground
-        && otherScheme.onError == onError
-        && otherScheme.brightness == brightness;
+    return other is ColorScheme
+        && other.primary == primary
+        && other.primaryVariant == primaryVariant
+        && other.secondary == secondary
+        && other.secondaryVariant == secondaryVariant
+        && other.surface == surface
+        && other.background == background
+        && other.error == error
+        && other.onPrimary == onPrimary
+        && other.onSecondary == onSecondary
+        && other.onSurface == onSurface
+        && other.onBackground == onBackground
+        && other.onError == onError
+        && other.brightness == brightness;
   }
 
   @override

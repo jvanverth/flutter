@@ -1,6 +1,8 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +10,7 @@ import 'package:flutter/material.dart';
 bool willPopValue = false;
 
 class SamplePage extends StatefulWidget {
+  const SamplePage({ Key key }) : super(key: key);
   @override
   SamplePageState createState() => SamplePageState();
 }
@@ -81,12 +84,12 @@ void main() {
           body: Builder(
             builder: (BuildContext context) {
               return Center(
-                child: FlatButton(
+                child: TextButton(
                   child: const Text('X'),
                   onPressed: () {
                     showDialog<void>(
                       context: context,
-                      builder: (BuildContext context) => SamplePage(),
+                      builder: (BuildContext context) => const SamplePage(),
                     );
                   },
                 ),
@@ -127,6 +130,51 @@ void main() {
     expect(find.text('Sample Page'), findsNothing);
   });
 
+  testWidgets('willPop will only pop if the callback returns true', (WidgetTester tester) async {
+    Widget buildFrame() {
+      return MaterialApp(
+        home: Scaffold(
+          appBar: AppBar(title: const Text('Home')),
+          body: Builder(
+            builder: (BuildContext context) {
+              return Center(
+                child: TextButton(
+                  child: const Text('X'),
+                  onPressed: () {
+                    Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (BuildContext context) {
+                        return SampleForm(
+                          callback: () => Future<bool>.value(willPopValue),
+                        );
+                      },
+                    ));
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildFrame());
+    await tester.tap(find.text('X'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sample Form'), findsOneWidget);
+
+    // Should not pop if callback returns null
+    willPopValue = null;
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sample Form'), findsOneWidget);
+
+    // Should pop if callback returns true
+    willPopValue = true;
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sample Form'), findsNothing);
+  });
+
   testWidgets('Form.willPop can inhibit back button', (WidgetTester tester) async {
     Widget buildFrame() {
       return MaterialApp(
@@ -135,7 +183,7 @@ void main() {
           body: Builder(
             builder: (BuildContext context) {
               return Center(
-                child: FlatButton(
+                child: TextButton(
                   child: const Text('X'),
                   onPressed: () {
                     Navigator.of(context).push(MaterialPageRoute<void>(
@@ -188,11 +236,11 @@ void main() {
         builder: (BuildContext context) {
           return AlertDialog(
             actions: <Widget> [
-              FlatButton(
+              TextButton(
                 child: const Text('YES'),
                 onPressed: () { Navigator.of(context).pop(true); },
               ),
-              FlatButton(
+              TextButton(
                 child: const Text('NO'),
                 onPressed: () { Navigator.of(context).pop(false); },
               ),
@@ -209,7 +257,7 @@ void main() {
           body: Builder(
             builder: (BuildContext context) {
               return Center(
-                child: FlatButton(
+                child: TextButton(
                   child: const Text('X'),
                   onPressed: () {
                     Navigator.of(context).push(MaterialPageRoute<void>(
@@ -295,7 +343,7 @@ void main() {
           body: Builder(
             builder: (BuildContext context) {
               return Center(
-                child: FlatButton(
+                child: TextButton(
                   child: const Text('X'),
                   onPressed: () {
                     Navigator.of(context).push(route);

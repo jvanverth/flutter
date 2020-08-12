@@ -1,9 +1,13 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// @dart = 2.8
+
+import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -32,6 +36,16 @@ class PushRouteObserver with WidgetsBindingObserver {
   @override
   Future<bool> didPushRoute(String route) async {
     pushedRoute = route;
+    return true;
+  }
+}
+
+class PushRouteInformationObserver with WidgetsBindingObserver {
+  RouteInformation pushedRouteInformation;
+
+  @override
+  Future<bool> didPushRouteInformation(RouteInformation routeInformation) async {
+    pushedRouteInformation = routeInformation;
     return true;
   }
 }
@@ -68,9 +82,9 @@ void main() {
     await defaultBinaryMessenger.handlePlatformMessage('flutter/lifecycle', message, (_) { });
     expect(observer.lifecycleState, AppLifecycleState.inactive);
 
-    message = const StringCodec().encodeMessage('AppLifecycleState.suspending');
+    message = const StringCodec().encodeMessage('AppLifecycleState.detached');
     await defaultBinaryMessenger.handlePlatformMessage('flutter/lifecycle', message, (_) { });
-    expect(observer.lifecycleState, AppLifecycleState.suspending);
+    expect(observer.lifecycleState, AppLifecycleState.detached);
   });
 
   testWidgets('didPushRoute callback', (WidgetTester tester) async {
@@ -83,6 +97,38 @@ void main() {
     await ServicesBinding.instance.defaultBinaryMessenger.handlePlatformMessage('flutter/navigation', message, (_) { });
     expect(observer.pushedRoute, testRouteName);
 
+    WidgetsBinding.instance.removeObserver(observer);
+  });
+
+  testWidgets('didPushRouteInformation calls didPushRoute by default', (WidgetTester tester) async {
+    final PushRouteObserver observer = PushRouteObserver();
+    WidgetsBinding.instance.addObserver(observer);
+
+    const Map<String, dynamic> testRouteInformation = <String, dynamic>{
+      'location': 'testRouteName',
+      'state': 'state',
+      'restorationData': <dynamic, dynamic>{'test': 'config'}
+    };
+    final ByteData message = const JSONMethodCodec().encodeMethodCall(
+      const MethodCall('pushRouteInformation', testRouteInformation));
+    await ServicesBinding.instance.defaultBinaryMessenger.handlePlatformMessage('flutter/navigation', message, (_) { });
+    expect(observer.pushedRoute, 'testRouteName');
+    WidgetsBinding.instance.removeObserver(observer);
+  });
+
+  testWidgets('didPushRouteInformation callback', (WidgetTester tester) async {
+    final PushRouteInformationObserver observer = PushRouteInformationObserver();
+    WidgetsBinding.instance.addObserver(observer);
+
+    const Map<String, dynamic> testRouteInformation = <String, dynamic>{
+      'location': 'testRouteName',
+      'state': 'state',
+    };
+    final ByteData message = const JSONMethodCodec().encodeMethodCall(
+      const MethodCall('pushRouteInformation', testRouteInformation));
+    await ServicesBinding.instance.defaultBinaryMessenger.handlePlatformMessage('flutter/navigation', message, (_) { });
+    expect(observer.pushedRouteInformation.location, 'testRouteName');
+    expect(observer.pushedRouteInformation.state, 'state');
     WidgetsBinding.instance.removeObserver(observer);
   });
 
@@ -105,7 +151,7 @@ void main() {
     await defaultBinaryMessenger.handlePlatformMessage('flutter/lifecycle', message, (_) { });
     expect(tester.binding.hasScheduledFrame, isFalse);
 
-    message = const StringCodec().encodeMessage('AppLifecycleState.suspending');
+    message = const StringCodec().encodeMessage('AppLifecycleState.detached');
     await defaultBinaryMessenger.handlePlatformMessage('flutter/lifecycle', message, (_) { });
     expect(tester.binding.hasScheduledFrame, isFalse);
 
@@ -122,9 +168,9 @@ void main() {
     tester.binding.scheduleFrame();
     expect(tester.binding.hasScheduledFrame, isFalse);
 
+    // TODO(chunhtai): fix this test after workaround is removed
+    // https://github.com/flutter/flutter/issues/45131
     tester.binding.scheduleForcedFrame();
-    expect(tester.binding.hasScheduledFrame, isTrue);
-    await tester.pump();
     expect(tester.binding.hasScheduledFrame, isFalse);
 
     int frameCount = 0;
@@ -137,5 +183,87 @@ void main() {
     tester.binding.scheduleWarmUpFrame(); // this actually tests flutter_test's implementation
     expect(tester.binding.hasScheduledFrame, isFalse);
     expect(frameCount, 1);
+
+    // Get the tester back to a resumed state for subsequent tests.
+    message = const StringCodec().encodeMessage('AppLifecycleState.resumed');
+    await defaultBinaryMessenger.handlePlatformMessage('flutter/lifecycle', message, (_) { });
+    expect(tester.binding.hasScheduledFrame, isTrue);
+    await tester.pump();
   });
+
+  testWidgets('scheduleFrameCallback error control test', (WidgetTester tester) async {
+    FlutterError error;
+    try {
+      tester.binding.scheduleFrameCallback(null, rescheduling: true);
+    } on FlutterError catch (e) {
+      error = e;
+    }
+    expect(error, isNotNull);
+    expect(error.diagnostics.length, 3);
+    expect(error.diagnostics.last.level, DiagnosticLevel.hint);
+    expect(
+      error.diagnostics.last.toStringDeep(),
+      equalsIgnoringHashCodes(
+        'If this is the initial registration of the callback, or if the\n'
+        'callback is asynchronous, then do not use the "rescheduling"\n'
+        'argument.\n'
+      ),
+    );
+    expect(
+      error.toStringDeep(),
+      'FlutterError\n'
+      '   scheduleFrameCallback called with rescheduling true, but no\n'
+      '   callback is in scope.\n'
+      '   The "rescheduling" argument should only be set to true if the\n'
+      '   callback is being reregistered from within the callback itself,\n'
+      '   and only then if the callback itself is entirely synchronous.\n'
+      '   If this is the initial registration of the callback, or if the\n'
+      '   callback is asynchronous, then do not use the "rescheduling"\n'
+      '   argument.\n'
+    );
+  });
+
+  testWidgets('defaultStackFilter elides framework Element mounting stacks', (WidgetTester tester) async {
+    final FlutterExceptionHandler oldHandler = FlutterError.onError;
+    String filteredStack;
+    FlutterError.onError = (FlutterErrorDetails details) {
+      expect(details.exception, isAssertionError);
+      expect(filteredStack, isNull);
+      filteredStack = details.toString();
+    };
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: TestStatefulWidget(
+        child: Builder(
+          builder: (BuildContext context) {
+            return Opacity(
+              opacity: .5,
+              child: Builder(
+                builder: (BuildContext context) => Text(null),
+              ),
+            );
+          },
+        ),
+      ),
+    ));
+    FlutterError.onError = oldHandler;
+    const String toMatch = '...     Normal element mounting (';
+    expect(toMatch.allMatches(filteredStack)?.length, 1);
+  });
+}
+
+class TestStatefulWidget extends StatefulWidget {
+  const TestStatefulWidget({this.child, Key key}) : super(key: key);
+
+  final Widget child;
+
+  @override
+  State<StatefulWidget> createState() => TestStatefulWidgetState();
+}
+
+class TestStatefulWidgetState extends State<TestStatefulWidget> {
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
+  }
 }

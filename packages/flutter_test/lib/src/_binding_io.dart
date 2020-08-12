@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as path;
+// ignore: deprecated_member_use
+import 'package:test_api/test_api.dart' as test_package;
+
 
 import 'binding.dart';
 
@@ -73,8 +76,21 @@ void mockFlutterAssets() {
 /// If another [HttpClient] is provided using [HttpOverrides.runZoned], that will
 /// take precedence over this provider.
 class _MockHttpOverrides extends HttpOverrides {
+  bool warningPrinted = false;
   @override
   HttpClient createHttpClient(SecurityContext _) {
+    if (!warningPrinted) {
+      test_package.printOnFailure(
+        'Warning: At least one test in this suite creates an HttpClient. When\n'
+        'running a test suite that uses TestWidgetsFlutterBinding, all HTTP\n'
+        'requests will return status code 400, and no network request will\n'
+        'actually be made. Any test expecting a real network connection and\n'
+        'status code will fail.\n'
+        'To test code that needs an HttpClient, provide your own HttpClient\n'
+        'implementation to the code under test, so that your test can\n'
+        'consistently provide a testable response to the code under test.');
+      warningPrinted = true;
+    }
     return _MockHttpClient();
   }
 }
@@ -211,6 +227,11 @@ class _MockHttpRequest extends HttpClientRequest {
   Future<HttpClientResponse> close() {
     return Future<HttpClientResponse>.value(_MockHttpResponse());
   }
+
+  // TODO(zichangguo): remove the ignore after the change in dart:io lands.
+  @override
+  // ignore: override_on_non_overriding_member
+  void abort([Object exception, StackTrace stackTrace]) {}
 
   @override
   HttpConnectionInfo get connectionInfo => null;
@@ -499,7 +520,7 @@ class _MockHttpHeaders extends HttpHeaders {
   List<String> operator [](String name) => <String>[];
 
   @override
-  void add(String name, Object value) { }
+  void add(String name, Object value, {bool preserveHeaderCase = false}) { }
 
   @override
   void clear() { }
@@ -517,7 +538,7 @@ class _MockHttpHeaders extends HttpHeaders {
   void removeAll(String name) { }
 
   @override
-  void set(String name, Object value) { }
+  void set(String name, Object value, {bool preserveHeaderCase = false}) { }
 
   @override
   String value(String name) => null;

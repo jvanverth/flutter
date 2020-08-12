@@ -1,6 +1,8 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'dart:math' as math;
 
@@ -147,10 +149,10 @@ class ScrollbarPainter extends ChangeNotifier implements CustomPainter {
   /// scrollable extent is large, the current visible viewport is small, and the
   /// viewport is not overscrolled.
   ///
-  /// The size of the scrollbar may shrink to a smaller size than [minLength]
-  /// to fit in the available paint area. E.g., when [minLength] is
-  /// `double.infinity`, it will not be respected if [viewportDimension] and
-  /// [mainAxisMargin] are finite.
+  /// The size of the scrollbar may shrink to a smaller size than [minLength] to
+  /// fit in the available paint area. E.g., when [minLength] is
+  /// `double.infinity`, it will not be respected if
+  /// [ScrollMetrics.viewportDimension] and [mainAxisMargin] are finite.
   ///
   /// Mustn't be null and the value has to be within the range of 0 to
   /// [minOverscrollLength], inclusive. Defaults to 18.0.
@@ -162,7 +164,7 @@ class ScrollbarPainter extends ChangeNotifier implements CustomPainter {
   /// When overscrolling, the size of the scrollbar may shrink to a smaller size
   /// than [minOverscrollLength] to fit in the available paint area. E.g., when
   /// [minOverscrollLength] is `double.infinity`, it will not be respected if
-  /// the [viewportDimension] and [mainAxisMargin] are finite.
+  /// the [ScrollMetrics.viewportDimension] and [mainAxisMargin] are finite.
   ///
   /// The value is less than or equal to [minLength] and greater than or equal to 0.
   /// If unspecified or set to null, it will defaults to the value of [minLength].
@@ -240,7 +242,7 @@ class ScrollbarPainter extends ChangeNotifier implements CustomPainter {
     // isn't less than the absolute minimum size.
     // _totalContentExtent >= viewportDimension, so (_totalContentExtent - _mainAxisPadding) > 0
     final double fractionVisible = ((_lastMetrics.extentInside - _mainAxisPadding) / (_totalContentExtent - _mainAxisPadding))
-      .clamp(0.0, 1.0);
+      .clamp(0.0, 1.0) as double;
 
     final double thumbExtent = math.max(
       math.min(_trackExtent, minOverscrollLength),
@@ -267,7 +269,7 @@ class ScrollbarPainter extends ChangeNotifier implements CustomPainter {
 
     // The `thumbExtent` should be no greater than `trackSize`, otherwise
     // the scrollbar may scroll towards the wrong direction.
-    return thumbExtent.clamp(newMinLength, _trackExtent);
+    return thumbExtent.clamp(newMinLength, _trackExtent) as double;
   }
 
   @override
@@ -311,7 +313,7 @@ class ScrollbarPainter extends ChangeNotifier implements CustomPainter {
     final double scrollableExtent = metrics.maxScrollExtent - metrics.minScrollExtent;
 
     final double fractionPast = (scrollableExtent > 0)
-      ? ((metrics.pixels - metrics.minScrollExtent) / scrollableExtent).clamp(0.0, 1.0)
+      ? ((metrics.pixels - metrics.minScrollExtent) / scrollableExtent).clamp(0.0, 1.0) as double
       : 0;
 
     return (_isReversed ? 1 - fractionPast : fractionPast) * (_trackExtent - thumbExtent);

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,8 +20,8 @@ import 'package:fuchsia_remote_debug_protocol/logging.dart';
 ///
 /// Example usage:
 ///
-/// $ dart examples/driver_todo_list_scroll.dart \
-///     fe80::8eae:4cff:fef4:9247 eno1
+///     $ dart examples/driver_todo_list_scroll.dart \
+///         fe80::8eae:4cff:fef4:9247 eno1
 Future<void> main(List<String> args) async {
   // Log only at info level within the library. If issues arise, this can be
   // changed to [LoggingLevel.all] or [LoggingLevel.fine] to see more

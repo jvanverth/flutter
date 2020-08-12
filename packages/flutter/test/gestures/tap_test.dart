@@ -1,11 +1,13 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// @dart = 2.8
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter_test/flutter_test.dart';
 
-import '../flutter_test_alternative.dart';
 import 'gesture_tester.dart';
 
 class TestGestureArenaMember extends GestureArenaMember {
@@ -85,6 +87,18 @@ void main() {
     position: Offset(20.0, 20.0),
   );
 
+  // Down/up sequence 6: tap sequence with tertiary button
+  const PointerDownEvent down6 = PointerDownEvent(
+    pointer: 6,
+    position: Offset(20.0, 20.0),
+    buttons: kTertiaryButton,
+  );
+
+  const PointerUpEvent up6 = PointerUpEvent(
+    pointer: 6,
+    position: Offset(20.0, 20.0),
+  );
+
   testGesture('Should recognize tap', (GestureTester tester) {
     final TapGestureRecognizer tap = TapGestureRecognizer();
 
@@ -103,6 +117,35 @@ void main() {
     expect(tapRecognized, isTrue);
     GestureBinding.instance.gestureArena.sweep(1);
     expect(tapRecognized, isTrue);
+
+    tap.dispose();
+  });
+
+  testGesture('Details contain the correct device kind', (GestureTester tester) {
+    final TapGestureRecognizer tap = TapGestureRecognizer();
+
+    TapDownDetails lastDownDetails;
+    TapUpDetails lastUpDetails;
+
+    tap.onTapDown = (TapDownDetails details) {
+      lastDownDetails = details;
+    };
+    tap.onTapUp = (TapUpDetails details) {
+      lastUpDetails = details;
+    };
+
+    const PointerDownEvent mouseDown =
+        PointerDownEvent(pointer: 1, kind: PointerDeviceKind.mouse);
+    const PointerUpEvent mouseUp =
+        PointerUpEvent(pointer: 1, kind: PointerDeviceKind.mouse);
+
+    tap.addPointer(mouseDown);
+    tester.closeArena(1);
+    tester.route(mouseDown);
+    expect(lastDownDetails.kind, PointerDeviceKind.mouse);
+
+    tester.route(mouseUp);
+    expect(lastUpDetails.kind, PointerDeviceKind.mouse);
 
     tap.dispose();
   });
@@ -380,6 +423,32 @@ void main() {
     tap.dispose();
   });
 
+  testGesture('onTapCancel should show reason in the proper format', (GestureTester tester) {
+    final TapGestureRecognizer tap = TapGestureRecognizer();
+
+    tap.onTapCancel = () {
+      throw Exception(test);
+    };
+
+    final FlutterExceptionHandler previousErrorHandler = FlutterError.onError;
+    bool gotError = false;
+    FlutterError.onError = (FlutterErrorDetails details) {
+      expect(details.toString().contains('"spontaneous onTapCancel"') , isTrue);
+      gotError = true;
+    };
+
+    const int pointer = 1;
+    tap.addPointer(const PointerDownEvent(pointer: pointer));
+    tester.closeArena(pointer);
+    tester.async.elapse(const Duration(milliseconds: 500));
+    tester.route(const PointerCancelEvent(pointer: pointer));
+
+    expect(gotError, isTrue);
+
+    FlutterError.onError = previousErrorHandler;
+    tap.dispose();
+  });
+
   testGesture('No duplicate tap events', (GestureTester tester) {
     final TapGestureRecognizer tapA = TapGestureRecognizer();
     final TapGestureRecognizer tapB = TapGestureRecognizer();
@@ -556,6 +625,51 @@ void main() {
     drag.dispose();
   });
 
+  testGesture('non-primary pointers does not trigger timeout', (GestureTester tester) {
+    // Regression test for https://github.com/flutter/flutter/issues/43310
+    // Pointer1 down, pointer2 down, then pointer 1 up, all within the timeout.
+    // In this way, `BaseTapGestureRecognizer.didExceedDeadline` can be triggered
+    // after its `_reset`.
+    final TapGestureRecognizer tap = TapGestureRecognizer();
+
+    final List<String> recognized = <String>[];
+    tap.onTapDown = (_) {
+      recognized.add('down');
+    };
+    tap.onTapUp = (_) {
+      recognized.add('up');
+    };
+    tap.onTap = () {
+      recognized.add('tap');
+    };
+    tap.onTapCancel = () {
+      recognized.add('cancel');
+    };
+
+    tap.addPointer(down1);
+    tester.closeArena(down1.pointer);
+
+    tap.addPointer(down2);
+    tester.closeArena(down2.pointer);
+
+    expect(recognized, isEmpty);
+
+    tester.route(up1);
+    GestureBinding.instance.gestureArena.sweep(down1.pointer);
+    expect(recognized, <String>['down', 'up', 'tap']);
+    recognized.clear();
+
+    // If regression happens, the following step will throw error
+    tester.async.elapse(const Duration(milliseconds: 200));
+    expect(recognized, isEmpty);
+
+    tester.route(up2);
+    GestureBinding.instance.gestureArena.sweep(down2.pointer);
+    expect(recognized, isEmpty);
+
+    tap.dispose();
+  });
+
   group('Enforce consistent-button restriction:', () {
     // Change buttons during down-up sequence 1
     const PointerMoveEvent move1lr = PointerMoveEvent(
@@ -675,6 +789,7 @@ void main() {
     TapGestureRecognizer primary;
     TapGestureRecognizer primary2;
     TapGestureRecognizer secondary;
+    TapGestureRecognizer tertiary;
     setUp(() {
       primary = TapGestureRecognizer()
         ..onTapDown = (TapDownDetails details) {
@@ -706,6 +821,16 @@ void main() {
         ..onSecondaryTapCancel = () {
           recognized.add('secondaryCancel');
         };
+      tertiary = TapGestureRecognizer()
+        ..onTertiaryTapDown = (TapDownDetails details) {
+          recognized.add('tertiaryDown');
+        }
+        ..onTertiaryTapUp = (TapUpDetails details) {
+          recognized.add('tertiaryUp');
+        }
+        ..onTertiaryTapCancel = () {
+          recognized.add('tertiaryCancel');
+        };
     });
 
     tearDown(() {
@@ -713,11 +838,25 @@ void main() {
       primary.dispose();
       primary2.dispose();
       secondary.dispose();
+      tertiary.dispose();
     });
 
     testGesture('A primary tap recognizer does not form competition with a secondary tap recognizer', (GestureTester tester) {
       primary.addPointer(down1);
       secondary.addPointer(down1);
+      tester.closeArena(1);
+
+      tester.route(down1);
+      expect(recognized, <String>['primaryDown']);
+      recognized.clear();
+
+      tester.route(up1);
+      expect(recognized, <String>['primaryUp']);
+    });
+
+    testGesture('A primary tap recognizer does not form competition with a tertiary tap recognizer', (GestureTester tester) {
+      primary.addPointer(down1);
+      tertiary.addPointer(down1);
       tester.closeArena(1);
 
       tester.route(down1);
@@ -750,6 +889,9 @@ void main() {
     const PointerCancelEvent cancel5 = PointerCancelEvent(
       pointer: 5,
     );
+    const PointerCancelEvent cancel6 = PointerCancelEvent(
+      pointer: 6,
+    );
 
     setUp(() {
       tap = TapGestureRecognizer()
@@ -773,6 +915,15 @@ void main() {
         }
         ..onSecondaryTapCancel = () {
           recognized.add('secondaryCancel');
+        }
+        ..onTertiaryTapDown = (TapDownDetails details) {
+          recognized.add('tertiaryDown');
+        }
+        ..onTertiaryTapUp = (TapUpDetails details) {
+          recognized.add('tertiaryUp');
+        }
+        ..onTertiaryTapCancel = () {
+          recognized.add('tertiaryCancel');
         };
     });
 
@@ -820,6 +971,19 @@ void main() {
       expect(recognized, <String>['secondaryUp']);
     });
 
+    testGesture('A tertiary tap should trigger tertiary callbacks', (GestureTester tester) {
+      tap.addPointer(down6);
+      tester.closeArena(down6.pointer);
+      expect(recognized, <String>[]);
+      tester.async.elapse(const Duration(milliseconds: 500));
+      expect(recognized, <String>['tertiaryDown']);
+      recognized.clear();
+
+      tester.route(up6);
+      GestureBinding.instance.gestureArena.sweep(down6.pointer);
+      expect(recognized, <String>['tertiaryUp']);
+    });
+
     testGesture('A secondary tap cancel should trigger secondary callbacks', (GestureTester tester) {
       tap.addPointer(down5);
       tester.closeArena(down5.pointer);
@@ -832,5 +996,52 @@ void main() {
       GestureBinding.instance.gestureArena.sweep(down5.pointer);
       expect(recognized, <String>['secondaryCancel']);
     });
+
+    testGesture('A tertiary tap cancel should trigger tertiary callbacks', (GestureTester tester) {
+      tap.addPointer(down6);
+      tester.closeArena(down6.pointer);
+      expect(recognized, <String>[]);
+      tester.async.elapse(const Duration(milliseconds: 500));
+      expect(recognized, <String>['tertiaryDown']);
+      recognized.clear();
+
+      tester.route(cancel6);
+      GestureBinding.instance.gestureArena.sweep(down6.pointer);
+      expect(recognized, <String>['tertiaryCancel']);
+    });
+  });
+
+  testGesture('A second tap after rejection is ignored', (GestureTester tester) {
+    bool didTap = false;
+
+    final TapGestureRecognizer tap = TapGestureRecognizer()
+      ..onTap = () {
+        didTap = true;
+      };
+    // Add drag recognizer for competition
+    final HorizontalDragGestureRecognizer drag = HorizontalDragGestureRecognizer()
+      ..onStart = (_) {};
+
+    final TestPointer pointer1 = TestPointer(1);
+
+    final PointerDownEvent down = pointer1.down(const Offset(0.0, 0.0));
+    drag.addPointer(down);
+    tap.addPointer(down);
+
+    tester.closeArena(1);
+
+    // One-finger moves, canceling the tap
+    tester.route(down);
+    tester.route(pointer1.move(const Offset(50.0, 0)));
+
+    // Add another finger
+    final TestPointer pointer2 = TestPointer(2);
+    final PointerDownEvent down2 = pointer2.down(const Offset(10.0, 20.0));
+    drag.addPointer(down2);
+    tap.addPointer(down2);
+    tester.closeArena(2);
+    tester.route(down2);
+
+    expect(didTap, isFalse);
   });
 }

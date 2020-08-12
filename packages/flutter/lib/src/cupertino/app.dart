@@ -1,6 +1,8 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -75,6 +77,7 @@ class CupertinoApp extends StatefulWidget {
     this.routes = const <String, WidgetBuilder>{},
     this.initialRoute,
     this.onGenerateRoute,
+    this.onGenerateInitialRoutes,
     this.onUnknownRoute,
     this.navigatorObservers = const <NavigatorObserver>[],
     this.builder,
@@ -91,6 +94,8 @@ class CupertinoApp extends StatefulWidget {
     this.checkerboardOffscreenLayers = false,
     this.showSemanticsDebugger = false,
     this.debugShowCheckedModeBanner = true,
+    this.shortcuts,
+    this.actions,
   }) : assert(routes != null),
        assert(navigatorObservers != null),
        assert(title != null),
@@ -99,6 +104,50 @@ class CupertinoApp extends StatefulWidget {
        assert(checkerboardOffscreenLayers != null),
        assert(showSemanticsDebugger != null),
        assert(debugShowCheckedModeBanner != null),
+       routeInformationProvider = null,
+       routeInformationParser = null,
+       routerDelegate = null,
+       backButtonDispatcher = null,
+       super(key: key);
+
+  /// Creates a [CupertinoApp] that uses the [Router] instead of a [Navigator].
+  const CupertinoApp.router({
+    Key key,
+    this.routeInformationProvider,
+    @required this.routeInformationParser,
+    @required this.routerDelegate,
+    this.backButtonDispatcher,
+    this.theme,
+    this.builder,
+    this.title = '',
+    this.onGenerateTitle,
+    this.color,
+    this.locale,
+    this.localizationsDelegates,
+    this.localeListResolutionCallback,
+    this.localeResolutionCallback,
+    this.supportedLocales = const <Locale>[Locale('en', 'US')],
+    this.showPerformanceOverlay = false,
+    this.checkerboardRasterCacheImages = false,
+    this.checkerboardOffscreenLayers = false,
+    this.showSemanticsDebugger = false,
+    this.debugShowCheckedModeBanner = true,
+    this.shortcuts,
+    this.actions,
+  }) : assert(title != null),
+       assert(showPerformanceOverlay != null),
+       assert(checkerboardRasterCacheImages != null),
+       assert(checkerboardOffscreenLayers != null),
+       assert(showSemanticsDebugger != null),
+       assert(debugShowCheckedModeBanner != null),
+       navigatorObservers = null,
+       navigatorKey = null,
+       onGenerateRoute = null,
+       home = null,
+       onGenerateInitialRoutes = null,
+       onUnknownRoute = null,
+       routes = null,
+       initialRoute = null,
        super(key: key);
 
   /// {@macro flutter.widgets.widgetsApp.navigatorKey}
@@ -129,11 +178,26 @@ class CupertinoApp extends StatefulWidget {
   /// {@macro flutter.widgets.widgetsApp.onGenerateRoute}
   final RouteFactory onGenerateRoute;
 
+  /// {@macro flutter.widgets.widgetsApp.onGenerateInitialRoutes}
+  final InitialRouteListFactory onGenerateInitialRoutes;
+
   /// {@macro flutter.widgets.widgetsApp.onUnknownRoute}
   final RouteFactory onUnknownRoute;
 
   /// {@macro flutter.widgets.widgetsApp.navigatorObservers}
   final List<NavigatorObserver> navigatorObservers;
+
+  /// {@macro flutter.widgets.widgetsApp.routeInformationProvider}
+  final RouteInformationProvider routeInformationProvider;
+
+  /// {@macro flutter.widgets.widgetsApp.routeInformationParser}
+  final RouteInformationParser<Object> routeInformationParser;
+
+  /// {@macro flutter.widgets.widgetsApp.routerDelegate}
+  final RouterDelegate<Object> routerDelegate;
+
+  /// {@macro flutter.widgets.widgetsApp.backButtonDispatcher}
+  final BackButtonDispatcher backButtonDispatcher;
 
   /// {@macro flutter.widgets.widgetsApp.builder}
   final TransitionBuilder builder;
@@ -192,6 +256,67 @@ class CupertinoApp extends StatefulWidget {
   /// {@macro flutter.widgets.widgetsApp.debugShowCheckedModeBanner}
   final bool debugShowCheckedModeBanner;
 
+  /// {@macro flutter.widgets.widgetsApp.shortcuts}
+  /// {@tool snippet}
+  /// This example shows how to add a single shortcut for
+  /// [LogicalKeyboardKey.select] to the default shortcuts without needing to
+  /// add your own [Shortcuts] widget.
+  ///
+  /// Alternatively, you could insert a [Shortcuts] widget with just the mapping
+  /// you want to add between the [WidgetsApp] and its child and get the same
+  /// effect.
+  ///
+  /// ```dart
+  /// Widget build(BuildContext context) {
+  ///   return WidgetsApp(
+  ///     shortcuts: <LogicalKeySet, Intent>{
+  ///       ... WidgetsApp.defaultShortcuts,
+  ///       LogicalKeySet(LogicalKeyboardKey.select): const ActivateIntent(),
+  ///     },
+  ///     color: const Color(0xFFFF0000),
+  ///     builder: (BuildContext context, Widget child) {
+  ///       return const Placeholder();
+  ///     },
+  ///   );
+  /// }
+  /// ```
+  /// {@end-tool}
+  /// {@macro flutter.widgets.widgetsApp.shortcuts.seeAlso}
+  final Map<LogicalKeySet, Intent> shortcuts;
+
+  /// {@macro flutter.widgets.widgetsApp.actions}
+  /// {@tool snippet}
+  /// This example shows how to add a single action handling an
+  /// [ActivateAction] to the default actions without needing to
+  /// add your own [Actions] widget.
+  ///
+  /// Alternatively, you could insert a [Actions] widget with just the mapping
+  /// you want to add between the [WidgetsApp] and its child and get the same
+  /// effect.
+  ///
+  /// ```dart
+  /// Widget build(BuildContext context) {
+  ///   return WidgetsApp(
+  ///     actions: <Type, Action<Intent>>{
+  ///       ... WidgetsApp.defaultActions,
+  ///       ActivateAction: CallbackAction(
+  ///         onInvoke: (Intent intent) {
+  ///           // Do something here...
+  ///           return null;
+  ///         },
+  ///       ),
+  ///     },
+  ///     color: const Color(0xFFFF0000),
+  ///     builder: (BuildContext context, Widget child) {
+  ///       return const Placeholder();
+  ///     },
+  ///   );
+  /// }
+  /// ```
+  /// {@end-tool}
+  /// {@macro flutter.widgets.widgetsApp.actions.seeAlso}
+  final Map<Type, Action<Intent>> actions;
+
   @override
   _CupertinoAppState createState() => _CupertinoAppState();
 
@@ -217,39 +342,12 @@ class _AlwaysCupertinoScrollBehavior extends ScrollBehavior {
 
 class _CupertinoAppState extends State<CupertinoApp> {
   HeroController _heroController;
+  bool get _usesRouter => widget.routerDelegate != null;
 
   @override
   void initState() {
     super.initState();
     _heroController = CupertinoApp.createCupertinoHeroController();
-    _updateNavigator();
-  }
-
-  @override
-  void didUpdateWidget(CupertinoApp oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.navigatorKey != oldWidget.navigatorKey) {
-      // If the Navigator changes, we have to create a new observer, because the
-      // old Navigator won't be disposed (and thus won't unregister with its
-      // observers) until after the new one has been created (because the
-      // Navigator has a GlobalKey).
-      _heroController = CupertinoApp.createCupertinoHeroController();
-    }
-    _updateNavigator();
-  }
-
-  List<NavigatorObserver> _navigatorObservers;
-
-  void _updateNavigator() {
-    if (widget.home != null ||
-        widget.routes.isNotEmpty ||
-        widget.onGenerateRoute != null ||
-        widget.onUnknownRoute != null) {
-      _navigatorObservers = List<NavigatorObserver>.from(widget.navigatorObservers)
-        ..add(_heroController);
-    } else {
-      _navigatorObservers = const <NavigatorObserver>[];
-    }
   }
 
   // Combine the default localization for Cupertino with the ones contributed
@@ -263,6 +361,83 @@ class _CupertinoAppState extends State<CupertinoApp> {
     yield DefaultCupertinoLocalizations.delegate;
   }
 
+  Widget _inspectorSelectButtonBuilder(BuildContext context, VoidCallback onPressed) {
+    return CupertinoButton.filled(
+      child: const Icon(
+        CupertinoIcons.search,
+        size: 28.0,
+        color: CupertinoColors.white,
+      ),
+      padding: EdgeInsets.zero,
+      onPressed: onPressed,
+    );
+  }
+
+  WidgetsApp _buildWidgetApp(BuildContext context) {
+    final CupertinoThemeData effectiveThemeData = CupertinoTheme.of(context);
+    final Color color = CupertinoDynamicColor.resolve(widget.color ?? effectiveThemeData.primaryColor, context);
+
+    if (_usesRouter) {
+      return WidgetsApp.router(
+        key: GlobalObjectKey(this),
+        routeInformationProvider: widget.routeInformationProvider,
+        routeInformationParser: widget.routeInformationParser,
+        routerDelegate: widget.routerDelegate,
+        backButtonDispatcher: widget.backButtonDispatcher,
+        builder: widget.builder,
+        title: widget.title,
+        onGenerateTitle: widget.onGenerateTitle,
+        textStyle: effectiveThemeData.textTheme.textStyle,
+        color: color,
+        locale: widget.locale,
+        localizationsDelegates: _localizationsDelegates,
+        localeResolutionCallback: widget.localeResolutionCallback,
+        localeListResolutionCallback: widget.localeListResolutionCallback,
+        supportedLocales: widget.supportedLocales,
+        showPerformanceOverlay: widget.showPerformanceOverlay,
+        checkerboardRasterCacheImages: widget.checkerboardRasterCacheImages,
+        checkerboardOffscreenLayers: widget.checkerboardOffscreenLayers,
+        showSemanticsDebugger: widget.showSemanticsDebugger,
+        debugShowCheckedModeBanner: widget.debugShowCheckedModeBanner,
+        inspectorSelectButtonBuilder: _inspectorSelectButtonBuilder,
+        shortcuts: widget.shortcuts,
+        actions: widget.actions,
+      );
+    }
+    return WidgetsApp(
+      key: GlobalObjectKey(this),
+      navigatorKey: widget.navigatorKey,
+      navigatorObservers: widget.navigatorObservers,
+      pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) {
+        return CupertinoPageRoute<T>(settings: settings, builder: builder);
+      },
+      home: widget.home,
+      routes: widget.routes,
+      initialRoute: widget.initialRoute,
+      onGenerateRoute: widget.onGenerateRoute,
+      onGenerateInitialRoutes: widget.onGenerateInitialRoutes,
+      onUnknownRoute: widget.onUnknownRoute,
+      builder: widget.builder,
+      title: widget.title,
+      onGenerateTitle: widget.onGenerateTitle,
+      textStyle: effectiveThemeData.textTheme.textStyle,
+      color: color,
+      locale: widget.locale,
+      localizationsDelegates: _localizationsDelegates,
+      localeResolutionCallback: widget.localeResolutionCallback,
+      localeListResolutionCallback: widget.localeListResolutionCallback,
+      supportedLocales: widget.supportedLocales,
+      showPerformanceOverlay: widget.showPerformanceOverlay,
+      checkerboardRasterCacheImages: widget.checkerboardRasterCacheImages,
+      checkerboardOffscreenLayers: widget.checkerboardOffscreenLayers,
+      showSemanticsDebugger: widget.showSemanticsDebugger,
+      debugShowCheckedModeBanner: widget.debugShowCheckedModeBanner,
+      inspectorSelectButtonBuilder: _inspectorSelectButtonBuilder,
+      shortcuts: widget.shortcuts,
+      actions: widget.actions,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final CupertinoThemeData effectiveThemeData = widget.theme ?? const CupertinoThemeData();
@@ -273,47 +448,11 @@ class _CupertinoAppState extends State<CupertinoApp> {
         data: CupertinoUserInterfaceLevelData.base,
         child: CupertinoTheme(
           data: effectiveThemeData,
-          child: Builder(
-            builder: (BuildContext context) {
-              return WidgetsApp(
-                key: GlobalObjectKey(this),
-                navigatorKey: widget.navigatorKey,
-                navigatorObservers: _navigatorObservers,
-                pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) =>
-                  CupertinoPageRoute<T>(settings: settings, builder: builder),
-                home: widget.home,
-                routes: widget.routes,
-                initialRoute: widget.initialRoute,
-                onGenerateRoute: widget.onGenerateRoute,
-                onUnknownRoute: widget.onUnknownRoute,
-                builder: widget.builder,
-                title: widget.title,
-                onGenerateTitle: widget.onGenerateTitle,
-                textStyle: effectiveThemeData.textTheme.textStyle,
-                color: CupertinoDynamicColor.resolve(widget.color ?? effectiveThemeData.primaryColor, context),
-                locale: widget.locale,
-                localizationsDelegates: _localizationsDelegates,
-                localeResolutionCallback: widget.localeResolutionCallback,
-                localeListResolutionCallback: widget.localeListResolutionCallback,
-                supportedLocales: widget.supportedLocales,
-                showPerformanceOverlay: widget.showPerformanceOverlay,
-                checkerboardRasterCacheImages: widget.checkerboardRasterCacheImages,
-                checkerboardOffscreenLayers: widget.checkerboardOffscreenLayers,
-                showSemanticsDebugger: widget.showSemanticsDebugger,
-                debugShowCheckedModeBanner: widget.debugShowCheckedModeBanner,
-                inspectorSelectButtonBuilder: (BuildContext context, VoidCallback onPressed) {
-                  return CupertinoButton.filled(
-                    child: const Icon(
-                      CupertinoIcons.search,
-                      size: 28.0,
-                      color: CupertinoColors.white,
-                    ),
-                    padding: EdgeInsets.zero,
-                    onPressed: onPressed,
-                  );
-                },
-              );
-            },
+          child: HeroControllerScope(
+            controller: _heroController,
+            child: Builder(
+              builder: _buildWidgetApp,
+            ),
           ),
         ),
       ),

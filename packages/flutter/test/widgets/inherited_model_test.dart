@@ -1,6 +1,8 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -109,7 +111,7 @@ void main() {
                       showB,
                       showC,
                       showABC,
-                      RaisedButton(
+                      ElevatedButton(
                         child: const Text('Increment a'),
                         onPressed: () {
                           // Rebuilds the ABCModel which triggers a rebuild
@@ -118,7 +120,7 @@ void main() {
                           setState(() { _a += 1; });
                         },
                       ),
-                      RaisedButton(
+                      ElevatedButton(
                         child: const Text('Increment b'),
                         onPressed: () {
                           // Rebuilds the ABCModel which triggers a rebuild
@@ -127,7 +129,7 @@ void main() {
                           setState(() { _b += 1; });
                         },
                       ),
-                      RaisedButton(
+                      ElevatedButton(
                         child: const Text('Increment c'),
                         onPressed: () {
                           // Rebuilds the ABCModel which triggers a rebuild
@@ -190,7 +192,7 @@ void main() {
     expect(find.text('a: 2 b: 2 c: 3'), findsOneWidget);
   });
 
-  testWidgets('Looking up an non existent InherintedModel ancestor returns null', (WidgetTester tester) async {
+  testWidgets('Looking up an non existent InheritedModel ancestor returns null', (WidgetTester tester) async {
     ABCModel inheritedModel;
 
     await tester.pumpWidget(
@@ -227,7 +229,7 @@ void main() {
         final Widget showABC = Builder(
           builder: (BuildContext context) {
             final ABCModel abc = ABCModel.of(context);
-            return Text('a: ${abc.a} b: ${abc.b} c: ${abc.c}', style: Theme.of(context).textTheme.title);
+            return Text('a: ${abc.a} b: ${abc.b} c: ${abc.c}', style: Theme.of(context).textTheme.headline6);
           }
         );
 
@@ -252,19 +254,19 @@ void main() {
                         const SizedBox(height: 24.0),
                         showABC,
                         const SizedBox(height: 24.0),
-                        RaisedButton(
+                        ElevatedButton(
                           child: const Text('Increment a'),
                           onPressed: () {
                             setState(() { _a += 1; });
                           },
                         ),
-                        RaisedButton(
+                        ElevatedButton(
                           child: const Text('Increment b'),
                           onPressed: () {
                             setState(() { _b += 1; });
                           },
                         ),
-                        RaisedButton(
+                        ElevatedButton(
                           child: const Text('Increment c'),
                           onPressed: () {
                             setState(() { _c += 1; });
@@ -344,7 +346,7 @@ void main() {
         final Widget showABC = Builder(
           builder: (BuildContext context) {
             final ABCModel abc = ABCModel.of(context);
-            return Text('a: ${abc.a} b: ${abc.b} c: ${abc.c}', style: Theme.of(context).textTheme.title);
+            return Text('a: ${abc.a} b: ${abc.b} c: ${abc.c}', style: Theme.of(context).textTheme.headline6);
           }
         );
 
@@ -369,25 +371,25 @@ void main() {
                         const SizedBox(height: 24.0),
                         showABC,
                         const SizedBox(height: 24.0),
-                        RaisedButton(
+                        ElevatedButton(
                           child: const Text('Increment a'),
                           onPressed: () {
                             setState(() { _a += 1; });
                           },
                         ),
-                        RaisedButton(
+                        ElevatedButton(
                           child: const Text('Increment b'),
                           onPressed: () {
                             setState(() { _b += 1; });
                           },
                         ),
-                        RaisedButton(
+                        ElevatedButton(
                           child: const Text('Increment c'),
                           onPressed: () {
                             setState(() { _c += 1; });
                           },
                         ),
-                        RaisedButton(
+                        ElevatedButton(
                           child: const Text('rebuild'),
                           onPressed: () {
                             setState(() {

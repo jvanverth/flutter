@@ -1,17 +1,21 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// @dart = 2.8
+
 import 'package:flutter/widgets.dart';
 
-import 'button_theme.dart';
+import 'button_style.dart';
+import 'color_scheme.dart';
 import 'colors.dart';
 import 'debug.dart';
-import 'flat_button.dart';
 import 'icons.dart';
 import 'ink_well.dart';
 import 'material.dart';
 import 'material_localizations.dart';
+import 'material_state.dart';
+import 'text_button.dart';
 import 'text_theme.dart';
 import 'theme.dart';
 
@@ -189,24 +193,24 @@ class Stepper extends StatefulWidget {
   ///
   /// If null, the default controls from the current theme will be used.
   ///
-  /// This callback which takes in a context and two functions,[onStepContinue]
+  /// This callback which takes in a context and two functions: [onStepContinue]
   /// and [onStepCancel]. These can be used to control the stepper.
   ///
-  /// {@tool snippet --template=stateless_widget_scaffold}
+  /// {@tool dartpad --template=stateless_widget_scaffold}
   /// Creates a stepper control with custom buttons.
   ///
   /// ```dart
   /// Widget build(BuildContext context) {
   ///   return Stepper(
   ///     controlsBuilder:
-  ///       (BuildContext context, {VoidCallback onStepContinue, VoidCallback onStepCancel}) {
+  ///       (BuildContext context, { VoidCallback onStepContinue, VoidCallback onStepCancel }) {
   ///          return Row(
   ///            children: <Widget>[
-  ///              FlatButton(
+  ///              TextButton(
   ///                onPressed: onStepContinue,
-  ///                child: const Text('CONTINUE'),
+  ///                child: const Text('NEXT'),
   ///              ),
-  ///              FlatButton(
+  ///              TextButton(
   ///                onPressed: onStepCancel,
   ///                child: const Text('CANCEL'),
   ///              ),
@@ -405,27 +409,44 @@ class _StepperState extends State<Stepper> with TickerProviderStateMixin {
     assert(cancelColor != null);
 
     final ThemeData themeData = Theme.of(context);
+    final ColorScheme colorScheme = themeData.colorScheme;
     final MaterialLocalizations localizations = MaterialLocalizations.of(context);
+
+    const OutlinedBorder buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(2)));
+    const EdgeInsets buttonPadding = EdgeInsets.symmetric(horizontal: 16.0);
 
     return Container(
       margin: const EdgeInsets.only(top: 16.0),
       child: ConstrainedBox(
         constraints: const BoxConstraints.tightFor(height: 48.0),
         child: Row(
+          // The Material spec no longer includes a Stepper widget. The continue
+          // and cancel button styles have been configured to match the original
+          // version of this widget.
           children: <Widget>[
-            FlatButton(
+            TextButton(
               onPressed: widget.onStepContinue,
-              color: _isDark() ? themeData.backgroundColor : themeData.primaryColor,
-              textColor: Colors.white,
-              textTheme: ButtonTextTheme.normal,
+              style: ButtonStyle(
+                foregroundColor: MaterialStateProperty.resolveWith<Color>((Set<MaterialState> states) {
+                  return states.contains(MaterialState.disabled) ? null : (_isDark() ? colorScheme.onSurface : colorScheme.onPrimary);
+                }),
+                backgroundColor: MaterialStateProperty.resolveWith<Color>((Set<MaterialState> states) {
+                  return _isDark() || states.contains(MaterialState.disabled) ? null : colorScheme.primary;
+                }),
+                padding: MaterialStateProperty.all<EdgeInsetsGeometry>(buttonPadding),
+                shape: MaterialStateProperty.all<OutlinedBorder>(buttonShape),
+              ),
               child: Text(localizations.continueButtonLabel),
             ),
             Container(
               margin: const EdgeInsetsDirectional.only(start: 8.0),
-              child: FlatButton(
+              child: TextButton(
                 onPressed: widget.onStepCancel,
-                textColor: cancelColor,
-                textTheme: ButtonTextTheme.normal,
+                style: TextButton.styleFrom(
+                  primary: cancelColor,
+                  padding: buttonPadding,
+                  shape: buttonShape,
+                ),
                 child: Text(localizations.cancelButtonLabel),
               ),
             ),
@@ -444,13 +465,13 @@ class _StepperState extends State<Stepper> with TickerProviderStateMixin {
       case StepState.indexed:
       case StepState.editing:
       case StepState.complete:
-        return textTheme.body2;
+        return textTheme.bodyText1;
       case StepState.disabled:
-        return textTheme.body2.copyWith(
+        return textTheme.bodyText1.copyWith(
           color: _isDark() ? _kDisabledDark : _kDisabledLight
         );
       case StepState.error:
-        return textTheme.body2.copyWith(
+        return textTheme.bodyText1.copyWith(
           color: _isDark() ? _kErrorDark : _kErrorLight
         );
     }
@@ -518,9 +539,11 @@ class _StepperState extends State<Stepper> with TickerProviderStateMixin {
               _buildLine(!_isLast(index)),
             ],
           ),
-          Container(
-            margin: const EdgeInsetsDirectional.only(start: 12.0),
-            child: _buildHeaderText(index),
+          Expanded(
+            child: Container(
+              margin: const EdgeInsetsDirectional.only(start: 12.0),
+              child: _buildHeaderText(index),
+            )
           ),
         ],
       ),
@@ -593,6 +616,7 @@ class _StepperState extends State<Stepper> with TickerProviderStateMixin {
                   if (widget.onStepTapped != null)
                     widget.onStepTapped(i);
                 } : null,
+                canRequestFocus: widget.steps[i].state != StepState.disabled,
                 child: _buildVerticalHeader(i),
               ),
               _buildVerticalBody(i),
@@ -610,6 +634,7 @@ class _StepperState extends State<Stepper> with TickerProviderStateMixin {
             if (widget.onStepTapped != null)
               widget.onStepTapped(i);
           } : null,
+          canRequestFocus: widget.steps[i].state != StepState.disabled,
           child: Row(
             children: <Widget>[
               Container(
@@ -670,10 +695,11 @@ class _StepperState extends State<Stepper> with TickerProviderStateMixin {
     assert(debugCheckHasMaterial(context));
     assert(debugCheckHasMaterialLocalizations(context));
     assert(() {
-      if (context.ancestorWidgetOfExactType(Stepper) != null)
+      if (context.findAncestorWidgetOfExactType<Stepper>() != null)
         throw FlutterError(
-          'Steppers must not be nested. The material specification advises '
-          'that one should avoid embedding steppers within steppers. '
+          'Steppers must not be nested.\n'
+          'The material specification advises that one should avoid embedding '
+          'steppers within steppers. '
           'https://material.io/archive/guidelines/components/steppers.html#steppers-usage'
         );
       return true;

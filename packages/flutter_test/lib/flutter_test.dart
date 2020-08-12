@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,14 +49,17 @@ export 'dart:async' show Future;
 export 'src/_goldens_io.dart' if (dart.library.html) 'src/_goldens_web.dart';
 export 'src/accessibility.dart';
 export 'src/all_elements.dart';
+export 'src/animation_sheet.dart';
 export 'src/binding.dart';
 export 'src/controller.dart';
 export 'src/event_simulation.dart';
 export 'src/finders.dart';
+export 'src/frame_timing_summarizer.dart';
 export 'src/goldens.dart';
 export 'src/matchers.dart';
 export 'src/nonconst.dart';
 export 'src/platform.dart';
+export 'src/restoration.dart';
 export 'src/stack_manipulation.dart';
 export 'src/test_async_utils.dart';
 export 'src/test_compat.dart';
