@@ -2,11 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// @dart = 2.8
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter/rendering.dart';
 
 void main() {
   testWidgets('Sliver with keep alive without key - should dispose after reordering', (WidgetTester tester) async {
@@ -404,8 +401,8 @@ List<Widget> createSwitchedChildList(List<Widget> childList, int i, int j) {
 
 class SwitchingChildBuilderTest extends StatefulWidget {
   const SwitchingChildBuilderTest({
-    this.children,
-    Key key,
+    required this.children,
+    Key? key,
   }) : super(key: key);
 
   final List<Widget> children;
@@ -415,8 +412,8 @@ class SwitchingChildBuilderTest extends StatefulWidget {
 }
 
 class _SwitchingChildBuilderTest extends State<SwitchingChildBuilderTest> {
-  List<Widget> children;
-  Map<Key, int> _mapKeyToIndex;
+  late List<Widget> children;
+  late Map<Key, int> _mapKeyToIndex;
 
   @override
   void initState() {
@@ -424,7 +421,7 @@ class _SwitchingChildBuilderTest extends State<SwitchingChildBuilderTest> {
     children = widget.children;
     _mapKeyToIndex = <Key, int>{};
     for (int index = 0; index < children.length; index += 1) {
-      final Key key = children[index].key;
+      final Key? key = children[index].key;
       if (key != null) {
         _mapKeyToIndex[key] = index;
       }
@@ -438,7 +435,7 @@ class _SwitchingChildBuilderTest extends State<SwitchingChildBuilderTest> {
       children = widget.children;
       _mapKeyToIndex = <Key, int>{};
       for (int index = 0; index < children.length; index += 1) {
-        final Key key = children[index].key;
+        final Key? key = children[index].key;
         if (key != null) {
           _mapKeyToIndex[key] = index;
         }
@@ -475,9 +472,9 @@ class _SwitchingChildBuilderTest extends State<SwitchingChildBuilderTest> {
 
 class SwitchingChildListTest extends StatefulWidget {
   const SwitchingChildListTest({
-    this.children,
+    required this.children,
     this.viewportFraction = 1.0,
-    Key key,
+    Key? key,
   }) : super(key: key);
 
   final List<Widget> children;
@@ -512,9 +509,9 @@ class _SwitchingChildListTest extends State<SwitchingChildListTest> {
 
 class SwitchingSliverListTest extends StatefulWidget {
   const SwitchingSliverListTest({
-    this.children,
+    required this.children,
     this.viewportFraction = 1.0,
-    Key key,
+    Key? key,
   }) : super(key: key);
 
   final List<Widget> children;
@@ -548,9 +545,9 @@ class _SwitchingSliverListTest extends State<SwitchingSliverListTest> {
 
 class WidgetTest0 extends StatefulWidget {
   const WidgetTest0({
-    this.text,
+    required this.text,
     this.keepAlive = false,
-    Key key,
+    Key? key,
   }) : super(key: key);
 
   final String text;
@@ -581,9 +578,9 @@ class _WidgetTest0State extends State<WidgetTest0> with AutomaticKeepAliveClient
 
 class WidgetTest1 extends StatefulWidget {
   const WidgetTest1({
-    this.text,
+    required this.text,
     this.keepAlive = false,
-    Key key,
+    Key? key,
   }) : super(key: key);
 
   final String text;
@@ -614,9 +611,9 @@ class _WidgetTest1State extends State<WidgetTest1> with AutomaticKeepAliveClient
 
 class WidgetTest2 extends StatefulWidget {
   const WidgetTest2({
-    this.text,
+    required this.text,
     this.keepAlive = false,
-    Key key,
+    Key? key,
   }) : super(key: key);
 
   final String text;

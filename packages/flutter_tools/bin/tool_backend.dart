@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// @dart = 2.8
+
 // Do not add package imports to this file.
 import 'dart:convert'; // ignore: dart_convert_import.
 import 'dart:io'; // ignore: dart_io_import.
@@ -19,6 +21,7 @@ Future<void> main(List<String> arguments) async {
   final String flutterRoot = Platform.environment['FLUTTER_ROOT'];
   final String flutterTarget = Platform.environment['FLUTTER_TARGET']
     ?? pathJoin(<String>['lib', 'main.dart']);
+  final String codeSizeDirectory = Platform.environment['CODE_SIZE_DIRECTORY'];
   final String localEngine = Platform.environment['LOCAL_ENGINE'];
   final String projectDirectory = Platform.environment['PROJECT_DIR'];
   final String splitDebugInfo = Platform.environment['SPLIT_DEBUG_INFO'];
@@ -26,6 +29,7 @@ Future<void> main(List<String> arguments) async {
   final bool trackWidgetCreation = Platform.environment['TRACK_WIDGET_CREATION'] == 'true';
   final bool treeShakeIcons = Platform.environment['TREE_SHAKE_ICONS'] == 'true';
   final bool verbose = Platform.environment['VERBOSE_SCRIPT_LOGGING'] == 'true';
+  final bool prefixedErrors = Platform.environment['PREFIXED_ERROR_LOGGING'] == 'true';
 
   Directory.current = projectDirectory;
 
@@ -50,17 +54,19 @@ or
     else
       'flutter'
   ]);
-  final String bundlePlatform = targetPlatform == 'windows-x64' ? 'windows' : 'linux';
+  final String bundlePlatform = targetPlatform == 'windows-x64' ? 'windows' : targetPlatform;
   final String target = '${buildMode}_bundle_${bundlePlatform}_assets';
-
   final Process assembleProcess = await Process.start(
     flutterExecutable,
     <String>[
       if (verbose)
         '--verbose',
+      if (prefixedErrors)
+        '--prefixed-errors',
       if (flutterEngine != null) '--local-engine-src-path=$flutterEngine',
       if (localEngine != null) '--local-engine=$localEngine',
       'assemble',
+      '--no-version-check',
       '--output=build',
       '-dTargetPlatform=$targetPlatform',
       '-dTrackWidgetCreation=$trackWidgetCreation',
@@ -70,6 +76,8 @@ or
       '-dDartObfuscation=$dartObfuscation',
       if (bundleSkSLPath != null)
         '-iBundleSkSLPath=$bundleSkSLPath',
+      if (codeSizeDirectory != null)
+        '-dCodeSizeDirectory=$codeSizeDirectory',
       if (splitDebugInfo != null)
         '-dSplitDebugInfo=$splitDebugInfo',
       if (dartDefines != null)

@@ -55,13 +55,10 @@ typedef _BucketVisitor = void Function(RestorationBucket bucket);
 /// In addition to providing restoration data when the app is launched,
 /// restoration data may also be provided to a running app to restore it to a
 /// previous state (e.g. when the user hits the back/forward button in the web
-/// browser). When this happens, the current bucket hierarchy is decommissioned
-/// and replaced with the hierarchy deserialized from the newly provided
-/// restoration data. Buckets in the old hierarchy notify their listeners when
-/// they get decommissioned. In response to the notification, listeners must
-/// stop using the old buckets. Owners of those buckets must dispose of them and
-/// claim a new child as a replacement from a parent in the new bucket hierarchy
-/// (that parent may be the updated [rootBucket]).
+/// browser). When this happens, the [RestorationManager] notifies its listeners
+/// (added via [addListener]) that a new [rootBucket] is available. In response
+/// to the notification, listeners must stop using the old bucket and restore
+/// their state from the information in the new [rootBucket].
 ///
 /// Same platforms restrict the size of the restoration data. Therefore, the
 /// data stored in the buckets should be as small as possible while still
@@ -92,6 +89,60 @@ typedef _BucketVisitor = void Function(RestorationBucket bucket);
 /// is always ready to go on the platform thread when the operating system needs
 /// it.
 ///
+/// ## State Restoration on iOS
+///
+/// To enable state restoration on iOS, a restoration identifier has to be
+/// assigned to the [FlutterViewController](https://api.flutter.dev/objcdoc/Classes/FlutterViewController.html).
+/// If the standard embedding (produced by `flutter create`) is used, this can
+/// be accomplished with the following steps:
+///
+///  1. In the app's directory, open `ios/Runner.xcodeproj` with Xcode.
+///  2. Select `Main.storyboard` under `Runner/Runner` in the Project Navigator
+///     on the left.
+///  3. Select the `Flutter View Controller` under
+///     `Flutter View Controller Scene` in the view hierarchy.
+///  4. Navigate to the Identity Inspector in the panel on the right.
+///  5. Enter a unique restoration ID in the provided field.
+///  6. Save the project.
+///
+/// ## Development with hot restart and hot reload
+///
+/// Changes applied to your app with hot reload and hot restart are not
+/// persisted on the device. They are lost when the app is fully terminated and
+/// restarted, e.g. by the operating system. Therefore, your app may not restore
+/// correctly during development if you have made changes and applied them with
+/// hot restart or hot reload. To test state restoration, always make sure to
+/// fully re-compile your application (e.g. by re-executing `flutter run`) after
+/// making a change.
+///
+/// ## Testing State Restoration
+///
+/// {@template flutter.widgets.RestorationManager}
+/// To test state restoration on Android:
+///   1. Turn on "Don't keep activities", which destroys the Android activity
+///      as soon as the user leaves it. This option should become available
+///      when Developer Options are turned on for the device.
+///   2. Run the code sample on an Android device.
+///   3. Create some in-memory state in the app on the phone,
+///      e.g. by navigating to a different screen.
+///   4. Background the Flutter app, then return to it. It will restart
+///      and restore its state.
+///
+/// To test state restoration on iOS:
+///   1. Open `ios/Runner.xcworkspace/` in Xcode.
+///   2. (iOS 14+ only): Switch to build in profile or release mode, as
+///      launching an app from the home screen is not supported in debug
+///      mode.
+///   2. Press the Play button in Xcode to build and run the app.
+///   3. Create some in-memory state in the app on the phone,
+///      e.g. by navigating to a different screen.
+///   4. Background the app on the phone, e.g. by going back to the home screen.
+///   5. Press the Stop button in Xcode to terminate the app while running in
+///      the background.
+///   6. Open the app again on the phone (not via Xcode). It will restart
+///      and restore its state.
+/// {@endtemplate}
+///
 /// See also:
 ///
 ///  * [ServicesBinding.restorationManager], which holds the singleton instance
@@ -100,6 +151,25 @@ typedef _BucketVisitor = void Function(RestorationBucket bucket);
 ///  * [RestorationMixin], which uses [RestorationBucket]s behind the scenes
 ///    to make [State] objects of [StatefulWidget]s restorable.
 class RestorationManager extends ChangeNotifier {
+  /// Construct the restoration manager and set up the communications channels
+  /// with the engine to get restoration messages (by calling [initChannels]).
+  RestorationManager() {
+    initChannels();
+  }
+
+  /// Sets up the method call handler for [SystemChannels.restoration].
+  ///
+  /// This is called by the constructor to configure the communications channel
+  /// with the Flutter engine to get restoration messages.
+  ///
+  /// Subclasses (especially in tests) can override this to avoid setting up
+  /// that communications channel, or to set it up differently, as necessary.
+  @protected
+  void initChannels() {
+    assert(!SystemChannels.restoration.checkMethodCallHandler(_methodHandler));
+    SystemChannels.restoration.setMethodCallHandler(_methodHandler);
+  }
+
   /// The root of the [RestorationBucket] hierarchy containing the restoration
   /// data.
   ///
@@ -131,24 +201,32 @@ class RestorationManager extends ChangeNotifier {
   ///  * [RootRestorationScope], which makes the root bucket available in the
   ///    [Widget] tree.
   Future<RestorationBucket?> get rootBucket {
-    if (!SystemChannels.restoration.checkMethodCallHandler(_methodHandler)) {
-      SystemChannels.restoration.setMethodCallHandler(_methodHandler);
-    }
     if (_rootBucketIsValid) {
       return SynchronousFuture<RestorationBucket?>(_rootBucket);
     }
     if (_pendingRootBucket == null) {
-      _pendingRootBucket = Completer<RestorationBucket>();
+      _pendingRootBucket = Completer<RestorationBucket?>();
       _getRootBucketFromEngine();
     }
     return _pendingRootBucket!.future;
   }
   RestorationBucket? _rootBucket; // May be null to indicate that restoration is turned off.
-  Completer<RestorationBucket>? _pendingRootBucket;
+  Completer<RestorationBucket?>? _pendingRootBucket;
   bool _rootBucketIsValid = false;
 
+  /// Returns true for the frame after [rootBucket] has been replaced with a
+  /// new non-null bucket.
+  ///
+  /// When true, entities should forget their current state and restore
+  /// their state according to the information in the new [rootBucket].
+  ///
+  /// The [RestorationManager] informs its listeners (added via [addListener])
+  /// when this flag changes from false to true.
+  bool get isReplacing => _isReplacing;
+  bool _isReplacing = false;
+
   Future<void> _getRootBucketFromEngine() async {
-    final Map<dynamic, dynamic>? config = await SystemChannels.restoration.invokeMethod<Map<dynamic, dynamic>>('get');
+    final Map<Object?, Object?>? config = await SystemChannels.restoration.invokeMethod<Map<Object?, Object?>>('get');
     if (_pendingRootBucket == null) {
       // The restoration data was obtained via other means (e.g. by calling
       // [handleRestorationDataUpdate] while the request to the engine was
@@ -159,10 +237,10 @@ class RestorationManager extends ChangeNotifier {
     _parseAndHandleRestorationUpdateFromEngine(config);
   }
 
-  void _parseAndHandleRestorationUpdateFromEngine(Map<dynamic, dynamic>? update) {
+  void _parseAndHandleRestorationUpdateFromEngine(Map<Object?, Object?>? update) {
     handleRestorationUpdateFromEngine(
-      enabled: update != null && update['enabled'] as bool,
-      data: update == null ? null : update['data'] as Uint8List,
+      enabled: update != null && update['enabled']! as bool,
+      data: update == null ? null : update['data'] as Uint8List?,
     );
   }
 
@@ -172,10 +250,8 @@ class RestorationManager extends ChangeNotifier {
   /// The `enabled` parameter indicates whether the engine wants to receive
   /// restoration data. When `enabled` is false, state restoration is turned
   /// off and the [rootBucket] is set to null. When `enabled` is true, the
-  /// provided restoration `data` will be parsed into the [rootBucket]. If
+  /// provided restoration `data` will be parsed into a new [rootBucket]. If
   /// `data` is null, an empty [rootBucket] will be instantiated.
-  ///
-  /// When this method is called, the old [rootBucket] is decommissioned.
   ///
   /// Subclasses in test frameworks may call this method at any time to inject
   /// restoration data (obtained e.g. by overriding [sendToEngine]) into the
@@ -185,9 +261,16 @@ class RestorationManager extends ChangeNotifier {
   @protected
   void handleRestorationUpdateFromEngine({required bool enabled, required Uint8List? data}) {
     assert(enabled != null);
+    assert(enabled || data == null);
+
+    _isReplacing = _rootBucketIsValid && enabled;
+    if (_isReplacing) {
+      SchedulerBinding.instance!.addPostFrameCallback((Duration _) {
+        _isReplacing = false;
+      });
+    }
 
     final RestorationBucket? oldRoot = _rootBucket;
-
     _rootBucket = enabled
         ? RestorationBucket.root(manager: this, rawData: _decodeRestorationData(data))
         : null;
@@ -198,11 +281,7 @@ class RestorationManager extends ChangeNotifier {
 
     if (_rootBucket != oldRoot) {
       notifyListeners();
-    }
-    if (oldRoot != null) {
-      oldRoot
-        ..decommission()
-        ..dispose();
+      oldRoot?.dispose();
     }
   }
 
@@ -226,25 +305,25 @@ class RestorationManager extends ChangeNotifier {
     );
   }
 
-  Future<dynamic> _methodHandler(MethodCall call) async {
+  Future<Object?> _methodHandler(MethodCall call) async {
     switch (call.method) {
       case 'push':
-        _parseAndHandleRestorationUpdateFromEngine(call.arguments as Map<dynamic, dynamic>);
+        _parseAndHandleRestorationUpdateFromEngine(call.arguments as Map<Object?, Object?>);
         break;
       default:
         throw UnimplementedError("${call.method} was invoked but isn't implemented by $runtimeType");
     }
   }
 
-  Map<dynamic, dynamic>? _decodeRestorationData(Uint8List? data) {
+  Map<Object?, Object?>? _decodeRestorationData(Uint8List? data) {
     if (data == null) {
       return null;
     }
     final ByteData encoded = data.buffer.asByteData(data.offsetInBytes, data.lengthInBytes);
-    return const StandardMessageCodec().decodeMessage(encoded) as Map<dynamic, dynamic>;
+    return const StandardMessageCodec().decodeMessage(encoded) as Map<Object?, Object?>?;
   }
 
-  Uint8List _encodeRestorationData(Map<dynamic, dynamic> data) {
+  Uint8List _encodeRestorationData(Map<Object?, Object?> data) {
     final ByteData encoded = const StandardMessageCodec().encodeMessage(data)!;
     return encoded.buffer.asUint8List(encoded.offsetInBytes, encoded.lengthInBytes);
   }
@@ -391,7 +470,7 @@ class RestorationManager extends ChangeNotifier {
 /// its current state changes, the data in the bucket must be updated. At the
 /// same time, the data in the bucket should be kept to a minimum. For example,
 /// for data that can be retrieved from other sources (like a database or
-/// webservice) only enough information (e.g. an ID or resource locator) to
+/// web service) only enough information (e.g. an ID or resource locator) to
 /// re-obtain that data should be stored in the bucket. In addition to managing
 /// the data in a bucket, an owner may also make the bucket available to other
 /// entities so they can claim child buckets from it via [claimChild] for their
@@ -404,31 +483,17 @@ class RestorationManager extends ChangeNotifier {
 /// stored in the bucket. If the bucket is empty, it may initialize itself to
 /// default values.
 ///
-/// During the lifetime of a bucket, it may notify its listeners that the bucket
-/// has been [decommission]ed. This happens when new restoration data has been
-/// provided to, for example, the [RestorationManager] to restore the
-/// application to a different state (e.g. when the user hits the back/forward
-/// button in the web browser). In response to the notification, owners must
-/// dispose their current bucket and replace it with a new bucket claimed from a
-/// new parent (which will have been initialized with the new restoration data).
-/// For example, if the owner previously claimed its bucket from
-/// [RestorationManager.rootBucket], it must claim its new bucket from there
-/// again. The root bucket will have been replaced with the new root bucket just
-/// before the bucket listeners are informed about the decommission. Once the
-/// new bucket is obtained, owners should restore their internal state according
-/// to the information in the new bucket.
-///
 /// When the data stored in a bucket is no longer needed to restore the
 /// application to its current state (e.g. because the owner of the bucket is no
 /// longer shown on screen), the bucket must be [dispose]d. This will remove all
 /// information stored in the bucket from the app's restoration data and that
 /// information will not be available again when the application is restored to
 /// this state in the future.
-class RestorationBucket extends ChangeNotifier {
+class RestorationBucket {
   /// Creates an empty [RestorationBucket] to be provided to [adoptChild] to add
   /// it to the bucket hierarchy.
   ///
-  /// {@template flutter.services.restoration.bucketcreation}
+  /// {@template flutter.services.RestorationBucket.empty.bucketCreation}
   /// Instantiating a bucket directly is rare, most buckets are created by
   /// claiming a child from a parent via [claimChild]. If no parent bucket is
   /// available, [RestorationManager.rootBucket] may be used as a parent.
@@ -440,7 +505,7 @@ class RestorationBucket extends ChangeNotifier {
     required Object? debugOwner,
   }) : assert(restorationId != null),
        _restorationId = restorationId,
-       _rawData = <String, dynamic>{} {
+       _rawData = <String, Object?>{} {
     assert(() {
       _debugOwner = debugOwner;
       return true;
@@ -467,15 +532,15 @@ class RestorationBucket extends ChangeNotifier {
   /// }
   /// ```
   ///
-  /// {@macro flutter.services.restoration.bucketcreation}
+  /// {@macro flutter.services.RestorationBucket.empty.bucketCreation}
   ///
   /// The `manager` argument must not be null.
   RestorationBucket.root({
     required RestorationManager manager,
-    required Map<dynamic, dynamic>? rawData,
+    required Map<Object?, Object?>? rawData,
   }) : assert(manager != null),
        _manager = manager,
-       _rawData = rawData ?? <dynamic, dynamic>{},
+       _rawData = rawData ?? <Object?, Object?>{},
        _restorationId = 'root' {
     assert(() {
       _debugOwner = manager;
@@ -490,7 +555,7 @@ class RestorationBucket extends ChangeNotifier {
   /// data stored under the given ID. In that case, create an empty bucket (via
   /// [RestorationBucket.empty] and have the parent adopt it via [adoptChild].
   ///
-  /// {@macro flutter.services.restoration.bucketcreation}
+  /// {@macro flutter.services.RestorationBucket.empty.bucketCreation}
   ///
   /// The `restorationId` and `parent` argument must not be null.
   RestorationBucket.child({
@@ -502,7 +567,7 @@ class RestorationBucket extends ChangeNotifier {
        assert(parent._rawChildren[restorationId] != null),
        _manager = parent._manager,
        _parent = parent,
-       _rawData = parent._rawChildren[restorationId] as Map<dynamic, dynamic>,
+       _rawData = parent._rawChildren[restorationId]! as Map<Object?, Object?>,
        _restorationId = restorationId {
     assert(() {
       _debugOwner = debugOwner;
@@ -513,7 +578,7 @@ class RestorationBucket extends ChangeNotifier {
   static const String _childrenMapKey = 'c';
   static const String _valuesMapKey = 'v';
 
-  final Map<dynamic, dynamic> _rawData;
+  final Map<Object?, Object?> _rawData;
 
   /// The owner of the bucket that was provided when the bucket was claimed via
   /// [claimChild].
@@ -529,6 +594,16 @@ class RestorationBucket extends ChangeNotifier {
   RestorationManager? _manager;
   RestorationBucket? _parent;
 
+  /// Returns true when entities processing this bucket should restore their
+  /// state from the information in the bucket (e.g. via [read] and
+  /// [claimChild]) instead of copying their current state information into the
+  /// bucket (e.g. via [write] and [adoptChild].
+  ///
+  /// This flag is true for the frame after the [RestorationManager] has been
+  /// instructed to restore the application from newly provided restoration
+  /// data.
+  bool get isReplacing => _manager?.isReplacing ?? false;
+
   /// The restoration ID under which the bucket is currently stored in the
   /// parent of this bucket (or wants to be stored if it is currently
   /// parent-less).
@@ -541,52 +616,9 @@ class RestorationBucket extends ChangeNotifier {
   String _restorationId;
 
   // Maps a restoration ID to the raw map representation of a child bucket.
-  Map<dynamic, dynamic> get _rawChildren => _rawData.putIfAbsent(_childrenMapKey, () => <dynamic, dynamic>{}) as Map<dynamic, dynamic>;
+  Map<Object?, Object?> get _rawChildren => _rawData.putIfAbsent(_childrenMapKey, () => <Object?, Object?>{})! as Map<Object?, Object?>;
   // Maps a restoration ID to a value that is stored in this bucket.
-  Map<dynamic, dynamic> get _rawValues => _rawData.putIfAbsent(_valuesMapKey, () => <dynamic, dynamic>{}) as Map<dynamic, dynamic>;
-
-  /// Called to signal that this bucket and all its descendants are no longer
-  /// part of the current restoration data and must not be used anymore.
-  ///
-  /// Calling this method will drop this bucket from its parent and notify all
-  /// its listeners as well as all listeners of its descendants. Once a bucket
-  /// has notified its listeners, it must not be used anymore. During the next
-  /// frame following the notification, the bucket must be disposed and replaced
-  /// with a new bucket.
-  ///
-  /// As an example, the [RestorationManager] calls this method on its root
-  /// bucket when it has been asked to restore a running application to a
-  /// different state. At that point, the data stored in the current bucket
-  /// hierarchy is invalid and will be replaced with a new hierarchy generated
-  /// from the restoration data describing the new state. To replace the current
-  /// bucket hierarchy, [decommission] is called on the root bucket to signal to
-  /// all owners of buckets in the hierarchy that their bucket has become
-  /// invalid. In response to the notification, bucket owners must [dispose]
-  /// their buckets and claim a new bucket from the newly created hierarchy. For
-  /// example, the owner of a bucket that was originally claimed from the
-  /// [RestorationManager.rootBucket] must dispose that bucket and claim a new
-  /// bucket from the new [RestorationManager.rootBucket]. Once the new bucket
-  /// is claimed, owners should restore their state according to the data stored
-  /// in the new bucket.
-  void decommission() {
-    assert(_debugAssertNotDisposed());
-    if (_parent != null) {
-      _parent!._dropChild(this);
-      _parent = null;
-    }
-    _performDecommission();
-  }
-
-  bool _decommissioned = false;
-
-  void _performDecommission() {
-    _decommissioned = true;
-    _updateManager(null);
-    notifyListeners();
-    _visitChildren((RestorationBucket bucket) {
-      bucket._performDecommission();
-    });
-  }
+  Map<Object?, Object?> get _rawValues => _rawData.putIfAbsent(_valuesMapKey, () => <Object?, Object?>{})! as Map<Object?, Object?>;
 
   // Get and store values.
 
@@ -602,10 +634,10 @@ class RestorationBucket extends ChangeNotifier {
   ///  * [remove], which removes a value from the bucket.
   ///  * [contains], which checks whether any value is stored under a given
   ///    restoration ID.
-  P read<P>(String restorationId) {
+  P? read<P>(String restorationId) {
     assert(_debugAssertNotDisposed());
     assert(restorationId != null);
-    return _rawValues[restorationId] as P;
+    return _rawValues[restorationId] as P?;
   }
 
   /// Stores the provided `value` of type `P` under the provided `restorationId`
@@ -646,11 +678,11 @@ class RestorationBucket extends ChangeNotifier {
   ///  * [write], which stores a value in the bucket.
   ///  * [contains], which checks whether any value is stored under a given
   ///    restoration ID.
-  P remove<P>(String restorationId) {
+  P? remove<P>(String restorationId) {
     assert(_debugAssertNotDisposed());
     assert(restorationId != null);
     final bool needsUpdate = _rawValues.containsKey(restorationId);
-    final P result = _rawValues.remove(restorationId) as P;
+    final P? result = _rawValues.remove(restorationId) as P?;
     if (_rawValues.isEmpty) {
       _rawData.remove(_valuesMapKey);
     }
@@ -782,7 +814,6 @@ class RestorationBucket extends ChangeNotifier {
 
   bool _needsSerialization = false;
   void _markNeedsSerialization() {
-    assert(_manager != null || _decommissioned);
     if (!_needsSerialization) {
       _needsSerialization = true;
       _manager?.scheduleSerializationFor(this);
@@ -903,8 +934,8 @@ class RestorationBucket extends ChangeNotifier {
 
   // Bucket management
 
-  /// Changes the restoration ID under which the bucket is stored in its parent
-  /// to `newRestorationId`.
+  /// Changes the restoration ID under which the bucket is (or will be) stored
+  /// in its parent to `newRestorationId`.
   ///
   /// No-op if the bucket is already stored under the provided id.
   ///
@@ -915,13 +946,12 @@ class RestorationBucket extends ChangeNotifier {
   void rename(String newRestorationId) {
     assert(_debugAssertNotDisposed());
     assert(newRestorationId != null);
-    assert(_parent != null);
     if (newRestorationId == restorationId) {
       return;
     }
-    _parent!._removeChildData(this);
+    _parent?._removeChildData(this);
     _restorationId = newRestorationId;
-    _parent!._addChildData(this);
+    _parent?._addChildData(this);
   }
 
   /// Deletes the bucket and all the data stored in it from the bucket
@@ -936,7 +966,6 @@ class RestorationBucket extends ChangeNotifier {
   /// as well.
   ///
   /// This method must only be called by the object's owner.
-  @override
   void dispose() {
     assert(_debugAssertNotDisposed());
     _visitChildren(_dropChild, concurrentModification: true);
@@ -945,7 +974,6 @@ class RestorationBucket extends ChangeNotifier {
     _parent?._removeChildData(this);
     _parent = null;
     _updateManager(null);
-    super.dispose();
     _debugDisposed = true;
   }
 

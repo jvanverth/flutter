@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// @dart = 2.8
+
 import 'dart:async';
 
 import 'package:meta/meta.dart';
@@ -12,7 +14,6 @@ import 'common.dart';
 import 'context.dart';
 import 'io.dart';
 import 'logger.dart';
-import 'utils.dart';
 
 typedef StringConverter = String Function(String string);
 
@@ -180,8 +181,6 @@ class RunResult {
 
 typedef RunResultChecker = bool Function(int);
 
-ProcessUtils get processUtils => ProcessUtils.instance;
-
 abstract class ProcessUtils {
   factory ProcessUtils({
     @required ProcessManager processManager,
@@ -190,8 +189,6 @@ abstract class ProcessUtils {
     processManager: processManager,
     logger: logger,
   );
-
-  static ProcessUtils get instance => context.get<ProcessUtils>();
 
   /// Spawns a child process to run the command [cmd].
   ///
@@ -257,6 +254,9 @@ abstract class ProcessUtils {
   /// If [filter] is non-null, all lines that do not match it are removed. If
   /// [mapFunction] is present, all lines that match [filter] are also forwarded
   /// to [mapFunction] for further processing.
+  ///
+  /// If [stdoutErrorMatcher] is non-null, matching lines from stdout will be
+  /// treated as errors, just as if they had been logged to stderr instead.
   Future<int> stream(
     List<String> cmd, {
     String workingDirectory,
@@ -264,6 +264,7 @@ abstract class ProcessUtils {
     String prefix = '',
     bool trace = false,
     RegExp filter,
+    RegExp stdoutErrorMatcher,
     StringConverter mapFunction,
     Map<String, String> environment,
   });
@@ -485,6 +486,7 @@ class _DefaultProcessUtils implements ProcessUtils {
     String prefix = '',
     bool trace = false,
     RegExp filter,
+    RegExp stdoutErrorMatcher,
     StringConverter mapFunction,
     Map<String, String> environment,
   }) async {
@@ -504,7 +506,9 @@ class _DefaultProcessUtils implements ProcessUtils {
         }
         if (line != null) {
           final String message = '$prefix$line';
-          if (trace) {
+          if (stdoutErrorMatcher?.hasMatch(line) == true) {
+            _logger.printError(message, wrap: false);
+          } else if (trace) {
             _logger.printTrace(message);
           } else {
             _logger.printStatus(message, wrap: false);
@@ -526,7 +530,7 @@ class _DefaultProcessUtils implements ProcessUtils {
 
     // Wait for stdout to be fully processed
     // because process.exitCode may complete first causing flaky tests.
-    await waitGroup<void>(<Future<void>>[
+    await Future.wait<void>(<Future<void>>[
       stdoutSubscription.asFuture<void>(),
       stderrSubscription.asFuture<void>(),
     ]);

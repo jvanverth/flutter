@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// @dart = 2.8
 
 import 'dart:ui' as ui show PlaceholderAlignment;
 
@@ -39,7 +38,7 @@ abstract class PlaceholderSpan extends InlineSpan {
   const PlaceholderSpan({
     this.alignment = ui.PlaceholderAlignment.bottom,
     this.baseline,
-    TextStyle style,
+    TextStyle? style,
   }) : super(style: style,);
 
   /// How the placeholder aligns vertically with the text.
@@ -51,7 +50,7 @@ abstract class PlaceholderSpan extends InlineSpan {
   /// [ui.PlaceholderAlignment.aboveBaseline], and [ui.PlaceholderAlignment.belowBaseline].
   ///
   /// This is ignored when using other alignment modes.
-  final TextBaseline baseline;
+  final TextBaseline? baseline;
 
   /// [PlaceholderSpan]s are flattened to a `0xFFFC` object replacement character in the
   /// plain text representation when `includePlaceholders` is true.
@@ -67,18 +66,6 @@ abstract class PlaceholderSpan extends InlineSpan {
     collector.add(InlineSpanSemanticsInformation.placeholder);
   }
 
-  // TODO(garyq): Remove this after next stable release.
-  /// The [visitTextSpan] method is invalid on [PlaceholderSpan]s.
-  @override
-  @Deprecated(
-    'Use to visitChildren instead. '
-    'This feature was deprecated after v1.7.3.'
-  )
-  bool visitTextSpan(bool visitor(TextSpan span)) {
-    assert(false, 'visitTextSpan is deprecated. Use visitChildren to support InlineSpans');
-    return false;
-  }
-
   /// Populates the `semanticsOffsets` and `semanticsElements` with the appropriate data
   /// to be able to construct a [SemanticsNode].
   ///
@@ -86,7 +73,6 @@ abstract class PlaceholderSpan extends InlineSpan {
   /// replacement character (0xFFFC) that is inserted to represent it.
   ///
   /// Null is added to `semanticsElements` for [PlaceholderSpan]s.
-  @override
   void describeSemantics(Accumulator offset, List<int> semanticsOffsets, List<dynamic> semanticsElements) {
     semanticsOffsets.add(offset.value);
     semanticsOffsets.add(offset.value + 1);
